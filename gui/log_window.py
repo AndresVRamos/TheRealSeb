@@ -19,7 +19,6 @@ class TextHandler(logging.Handler):
 
     def emit(self, record):
         msg = self.format(record)
-        # Determinar el tag según el nivel de log
         level = record.levelname
         if level == 'ERROR' or level == 'CRITICAL':
             tag = 'error'
@@ -85,7 +84,7 @@ class LogWindow:
         image = Image.new('RGB', (width, height), color1)
         dc = ImageDraw.Draw(image)
 
-        # Dibujar una nota musical simple
+        # Nota musical simple
         dc.ellipse([20, 35, 35, 50], fill=color2)
         dc.rectangle([32, 15, 38, 42], fill=color2)
 
@@ -118,7 +117,7 @@ class LogWindow:
         self.text_area.tag_config('debug', foreground='#a9a9a9')      # Gris para debug
         self.text_area.tag_config('default', foreground='#d4d4d4')    # Blanco/gris claro por defecto
 
-        # Configurar logging para capturar TODO
+        # Configurar logging para capturar todo
         text_handler = TextHandler(self.text_area)
         formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
         text_handler.setFormatter(formatter)
