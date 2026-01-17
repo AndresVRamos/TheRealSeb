@@ -211,6 +211,74 @@ class LogWindow:
 # Variable global para la ventana de logs
 log_window = LogWindow()
 
+# Funciones helper para formateo
+def format_duration(seconds):
+    if seconds == 0:
+        return "N/A"
+    minutes, seconds = divmod(int(seconds), 60)
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours:02}:{minutes:02}:{seconds:02}" if hours > 0 else f"{minutes:02}:{seconds:02}"
+
+def parse_time_string(time_str):
+    """
+    Convierte strings de tiempo como '1m30s', '90s', '5m', '1:30' a segundos
+    """
+    try:
+        time_str = time_str.lower().strip()
+        total_seconds = 0
+
+        # Formato MM:SS o HH:MM:SS
+        if ':' in time_str:
+            parts = time_str.split(':')
+            if len(parts) == 2:  # MM:SS
+                minutes, seconds = map(int, parts)
+                total_seconds = minutes * 60 + seconds
+            elif len(parts) == 3:  # HH:MM:SS
+                hours, minutes, seconds = map(int, parts)
+                total_seconds = hours * 3600 + minutes * 60 + seconds
+            else:
+                return None
+        else:
+            # Formato con sufijos (5m, 30s, 1m30s)
+            import re
+
+            # Buscar horas (h)
+            hours_match = re.search(r'(\d+)h', time_str)
+            if hours_match:
+                total_seconds += int(hours_match.group(1)) * 3600
+                time_str = re.sub(r'\d+h', '', time_str)
+
+            # Buscar minutos (m)
+            minutes_match = re.search(r'(\d+)m', time_str)
+            if minutes_match:
+                total_seconds += int(minutes_match.group(1)) * 60
+                time_str = re.sub(r'\d+m', '', time_str)
+
+            # Buscar segundos (s)
+            seconds_match = re.search(r'(\d+)s', time_str)
+            if seconds_match:
+                total_seconds += int(seconds_match.group(1))
+                time_str = re.sub(r'\d+s', '', time_str)
+
+            # Si queda algo que sea solo número, asumimos que son segundos
+            remaining = re.sub(r'\s+', '', time_str)
+            if remaining.isdigit():
+                total_seconds += int(remaining)
+            elif remaining and not total_seconds:
+                # Si no se pudo parsear nada y queda texto
+                return None
+
+        return total_seconds if total_seconds > 0 else None
+
+    except (ValueError, AttributeError):
+        return None
+
+def create_progress_bar(current, total, bar_length=15):
+    if total == 0:
+        return "─" * bar_length # Barra vacía si no hay duración
+    progress = int((current / total) * bar_length)
+    return "■" * progress + "─" * (bar_length - progress)
+
 # Clase para manejar la paginación de la queue
 class QueuePaginator(discord.ui.View):
     def __init__(self, ctx, pages, total_songs):
@@ -264,6 +332,359 @@ class QueuePaginator(discord.ui.View):
         if self.current_page < self.total_pages - 1:
             self.current_page += 1
             await self.update_message(interaction)
+
+# Clase para manejar los controles interactivos de música
+class MusicControls(discord.ui.View):
+    def __init__(self, ctx, message, voice_clients, loop_status, queues, song_data, manual_stop):
+        super().__init__(timeout=180)  # 3 minutos de timeout
+        self.ctx = ctx
+        self.message = message
+        self.voice_clients = voice_clients
+        self.loop_status = loop_status
+        self.queues = queues
+        self.song_data = song_data
+        self.manual_stop = manual_stop
+        self.guild_id = ctx.guild.id
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        """Verificar que el usuario esté en el mismo canal de voz que el bot"""
+        if not interaction.user.voice:
+            await interaction.response.send_message(
+                "🚫 ¡Debes estar en un canal de voz para usar estos botones!",
+                ephemeral=True
+            )
+            return False
+
+        if interaction.user.voice.channel != self.ctx.guild.voice_client.channel:
+            await interaction.response.send_message(
+                "🚫 ¡Debes estar en el mismo canal de voz que el bot!",
+                ephemeral=True
+            )
+            return False
+
+        return True
+
+    async def on_timeout(self):
+        """Deshabilitar todos los botones cuando ocurre el timeout"""
+        for item in self.children:
+            item.disabled = True
+        try:
+            await self.message.edit(view=self)
+        except:
+            pass  # El mensaje podría haber sido eliminado
+
+    def update_button_states(self):
+        """Actualizar estados de botones según el estado actual de reproducción"""
+        guild_id = self.guild_id
+
+        # Deshabilitar todos los botones si no está conectado
+        if (guild_id not in self.voice_clients or
+                not self.voice_clients[guild_id].is_connected()):
+            for item in self.children:
+                item.disabled = True
+            return
+
+        vc = self.voice_clients[guild_id]
+
+        # Actualizar botón pause/resume (índice 0)
+        if vc.is_playing():
+            self.children[0].emoji = "⏸️"
+            self.children[0].label = "Pausar"
+            self.children[0].disabled = False
+        elif vc.is_paused():
+            self.children[0].emoji = "▶️"
+            self.children[0].label = "Reanudar"
+            self.children[0].disabled = False
+        else:
+            self.children[0].disabled = True
+
+        # Actualizar botón skip (índice 1)
+        self.children[1].disabled = not (vc.is_playing() or vc.is_paused())
+
+        # Actualizar botón loop (índice 2) - cambiar estilo según estado
+        if self.loop_status.get(guild_id, False):
+            self.children[2].style = discord.ButtonStyle.success
+            self.children[2].label = "Loop: ON"
+        else:
+            self.children[2].style = discord.ButtonStyle.secondary
+            self.children[2].label = "Loop: OFF"
+
+        # Actualizar botón shuffle (índice 3) - deshabilitar si queue < 2 canciones
+        queue_len = len(self.queues.get(guild_id, []))
+        self.children[3].disabled = queue_len < 2
+
+        # Botón stop (índice 4) siempre habilitado si está conectado
+        self.children[4].disabled = False
+
+    async def update_embed(self, interaction: discord.Interaction):
+        """Recrear y actualizar el embed con información actual de la canción"""
+        guild_id = self.guild_id
+
+        if (guild_id not in self.song_data or
+                guild_id not in self.voice_clients or
+                not (self.voice_clients[guild_id].is_playing() or
+                     self.voice_clients[guild_id].is_paused())):
+            # La canción terminó o se detuvo
+            embed = discord.Embed(
+                title="🚫 No hay canción",
+                description="No hay ninguna canción reproduciéndose ahora mismo.",
+                color=discord.Color.red()
+            )
+            self.update_button_states()
+            await interaction.response.edit_message(embed=embed, view=self)
+            return
+
+        data = self.song_data[guild_id]
+
+        # Calcular tiempo transcurrido (igual que en now_playing)
+        elapsed_time = (time.time() - data['start_time']) - data['paused_time']
+
+        if data['pause_start_time'] > 0:
+            elapsed_time -= (time.time() - data['pause_start_time'])
+
+        elapsed_time = min(elapsed_time, data['duration'])
+
+        # Formatear strings
+        title = data['title']
+        url = data['url']
+        current_time_str = format_duration(elapsed_time)
+        total_time_str = format_duration(data['duration'])
+        progress_bar = create_progress_bar(elapsed_time, data['duration'])
+
+        # Crear embed
+        embed = discord.Embed(
+            title="🎵 Sonando Ahora",
+            description=f"**[{title}]({url})**",
+            color=discord.Color.green()
+        )
+        embed.add_field(
+            name="",
+            value=f"`{current_time_str} / {total_time_str}`\n`[{progress_bar}]`",
+            inline=False
+        )
+
+        # Agregar info de queue si hay canciones
+        if guild_id in self.queues and self.queues[guild_id]:
+            next_song = self.queues[guild_id][0][1]
+            queue_count = len(self.queues[guild_id])
+            embed.add_field(
+                name="⏭️ Siguiente",
+                value=f"{next_song}\n*+{queue_count - 1} más en la cola*" if queue_count > 1 else next_song,
+                inline=False
+            )
+
+        # Agregar estado de loop
+        if self.loop_status.get(guild_id, False):
+            embed.set_footer(
+                text=f"🔁 Loop activado | Pedido por {self.ctx.author.display_name}",
+                icon_url=self.ctx.author.avatar
+            )
+        else:
+            embed.set_footer(
+                text=f"Pedido por {self.ctx.author.display_name}",
+                icon_url=self.ctx.author.avatar
+            )
+
+        # Actualizar estados de botones antes de editar
+        self.update_button_states()
+
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    async def update_embed_after_response(self, interaction: discord.Interaction):
+        """Actualizar embed después de ya haber enviado una respuesta ephemeral"""
+        guild_id = self.guild_id
+
+        if (guild_id not in self.song_data or
+                guild_id not in self.voice_clients or
+                not (self.voice_clients[guild_id].is_playing() or
+                     self.voice_clients[guild_id].is_paused())):
+            # La canción terminó o se detuvo
+            embed = discord.Embed(
+                title="🚫 No hay canción",
+                description="No hay ninguna canción reproduciéndose ahora mismo.",
+                color=discord.Color.red()
+            )
+            self.update_button_states()
+            await self.message.edit(embed=embed, view=self)
+            return
+
+        data = self.song_data[guild_id]
+
+        # Calcular tiempo transcurrido
+        elapsed_time = (time.time() - data['start_time']) - data['paused_time']
+
+        if data['pause_start_time'] > 0:
+            elapsed_time -= (time.time() - data['pause_start_time'])
+
+        elapsed_time = min(elapsed_time, data['duration'])
+
+        # Formatear strings
+        title = data['title']
+        url = data['url']
+        current_time_str = format_duration(elapsed_time)
+        total_time_str = format_duration(data['duration'])
+        progress_bar = create_progress_bar(elapsed_time, data['duration'])
+
+        # Crear embed
+        embed = discord.Embed(
+            title="🎵 Sonando Ahora",
+            description=f"**[{title}]({url})**",
+            color=discord.Color.green()
+        )
+        embed.add_field(
+            name="",
+            value=f"`{current_time_str} / {total_time_str}`\n`[{progress_bar}]`",
+            inline=False
+        )
+
+        # Agregar info de queue
+        if guild_id in self.queues and self.queues[guild_id]:
+            next_song = self.queues[guild_id][0][1]
+            queue_count = len(self.queues[guild_id])
+            embed.add_field(
+                name="⏭️ Siguiente",
+                value=f"{next_song}\n*+{queue_count - 1} más en la cola*" if queue_count > 1 else next_song,
+                inline=False
+            )
+
+        # Agregar estado de loop
+        if self.loop_status.get(guild_id, False):
+            embed.set_footer(
+                text=f"🔁 Loop activado | Pedido por {self.ctx.author.display_name}",
+                icon_url=self.ctx.author.avatar
+            )
+        else:
+            embed.set_footer(
+                text=f"Pedido por {self.ctx.author.display_name}",
+                icon_url=self.ctx.author.avatar
+            )
+
+        self.update_button_states()
+        await self.message.edit(embed=embed, view=self)
+
+    @discord.ui.button(label="Pausar", emoji="⏸️", style=discord.ButtonStyle.primary, custom_id="pause_resume")
+    async def pause_resume_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        guild_id = self.guild_id
+        vc = self.voice_clients.get(guild_id)
+
+        if not vc or not vc.is_connected():
+            await interaction.response.send_message("🚫 **No estoy conectado a un canal de voz.**", ephemeral=True)
+            return
+
+        if vc.is_playing():
+            # Pausar la reproducción
+            vc.pause()
+
+            # Actualizar timing de pausa
+            if guild_id in self.song_data:
+                self.song_data[guild_id]['pause_start_time'] = time.time()
+
+            logging.info(f"Reproducción pausada vía botón por {interaction.user}")
+
+        elif vc.is_paused():
+            # Reanudar la reproducción
+            vc.resume()
+
+            # Actualizar timing de pausa
+            if guild_id in self.song_data and self.song_data[guild_id]['pause_start_time'] > 0:
+                paused_duration = time.time() - self.song_data[guild_id]['pause_start_time']
+                self.song_data[guild_id]['paused_time'] += paused_duration
+                self.song_data[guild_id]['pause_start_time'] = 0
+
+            logging.info(f"Reproducción reanudada vía botón por {interaction.user}")
+
+        else:
+            await interaction.response.send_message("🚫 **No hay nada reproduciéndose.**", ephemeral=True)
+            return
+
+        # Actualizar el embed y botones
+        await self.update_embed(interaction)
+
+    @discord.ui.button(label="Skip", emoji="⏭️", style=discord.ButtonStyle.secondary, custom_id="skip")
+    async def skip_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        guild_id = self.guild_id
+        vc = self.voice_clients.get(guild_id)
+
+        if not vc or not vc.is_connected():
+            await interaction.response.send_message("🚫 **No estoy conectado a un canal de voz.**", ephemeral=True)
+            return
+
+        if not (vc.is_playing() or vc.is_paused()):
+            await interaction.response.send_message("🚫 **No hay ninguna canción reproduciéndose para saltar.**", ephemeral=True)
+            return
+
+        logging.info(f"Canción saltada vía botón por {interaction.user}")
+
+        # Detener reproducción actual (after_play manejará la siguiente)
+        vc.stop()
+
+        # Enviar confirmación ephemeral
+        await interaction.response.send_message("⏭️ **Canción saltada!**", ephemeral=True)
+
+    @discord.ui.button(label="Loop: OFF", emoji="🔁", style=discord.ButtonStyle.secondary, custom_id="loop")
+    async def loop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        guild_id = self.guild_id
+
+        # Toggle loop status
+        self.loop_status[guild_id] = not self.loop_status.get(guild_id, False)
+
+        if self.loop_status[guild_id]:
+            logging.info(f"Loop activado vía botón por {interaction.user}")
+            status_msg = "🔁 **Loop activado!**"
+        else:
+            logging.info(f"Loop desactivado vía botón por {interaction.user}")
+            status_msg = "🔁 **Loop desactivado!**"
+
+        # Enviar confirmación ephemeral
+        await interaction.response.send_message(status_msg, ephemeral=True)
+
+        # Actualizar embed después de respuesta
+        await self.update_embed_after_response(interaction)
+
+    @discord.ui.button(label="Shuffle", emoji="🔀", style=discord.ButtonStyle.secondary, custom_id="shuffle")
+    async def shuffle_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        guild_id = self.guild_id
+
+        if guild_id not in self.queues or len(self.queues[guild_id]) < 2:
+            await interaction.response.send_message("🚫 **La queue necesita al menos 2 canciones para mezclar.**", ephemeral=True)
+            return
+
+        # Mezclar la queue
+        random.shuffle(self.queues[guild_id])
+        logging.info(f"Queue mezclada vía botón por {interaction.user}")
+
+        # Enviar confirmación
+        await interaction.response.send_message(f"🔀 **Queue mezclada! ({len(self.queues[guild_id])} canciones)**", ephemeral=True)
+
+        # Actualizar embed para mostrar nueva siguiente canción
+        await self.update_embed_after_response(interaction)
+
+    @discord.ui.button(label="Stop", emoji="⏹️", style=discord.ButtonStyle.danger, custom_id="stop")
+    async def stop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        guild_id = self.guild_id
+        vc = self.voice_clients.get(guild_id)
+
+        if not vc or not vc.is_connected():
+            await interaction.response.send_message("🚫 **No estoy conectado a un canal de voz.**", ephemeral=True)
+            return
+
+        logging.info(f"Reproducción detenida vía botón por {interaction.user}")
+
+        # Marcar manual_stop ANTES de detener (CRÍTICO)
+        self.manual_stop[guild_id] = True
+
+        # Detener reproducción
+        vc.stop()
+
+        # Limpiar queue
+        if guild_id in self.queues:
+            self.queues[guild_id].clear()
+
+        # Enviar confirmación
+        await interaction.response.send_message("⏹️ **Reproducción detenida y queue limpiada!**", ephemeral=True)
+
+        # Actualizar embed para mostrar estado detenido
+        await self.update_embed_after_response(interaction)
 
 async def run_bot():
     load_dotenv()
@@ -851,114 +1272,83 @@ async def run_bot():
             logging.error(f"Error en playnext: {e}")
             await ctx.send(f"⚠️ **Error al agregar la canción a la posición siguiente: {e}**")
 
-    def format_duration(seconds):
-        if seconds == 0:
-            return "N/A"
-        minutes, seconds = divmod(int(seconds), 60)
-        hours, minutes = divmod(minutes, 60)
-        return f"{hours:02}:{minutes:02}:{seconds:02}" if hours > 0 else f"{minutes:02}:{seconds:02}"
-
-    def parse_time_string(time_str):
-        """
-        Convierte strings de tiempo como '1m30s', '90s', '5m', '1:30' a segundos
-        """
-        try:
-            time_str = time_str.lower().strip()
-            total_seconds = 0
-            
-            # Formato MM:SS o HH:MM:SS
-            if ':' in time_str:
-                parts = time_str.split(':')
-                if len(parts) == 2:  # MM:SS
-                    minutes, seconds = map(int, parts)
-                    total_seconds = minutes * 60 + seconds
-                elif len(parts) == 3:  # HH:MM:SS
-                    hours, minutes, seconds = map(int, parts)
-                    total_seconds = hours * 3600 + minutes * 60 + seconds
-                else:
-                    return None
-            else:
-                # Formato con sufijos (5m, 30s, 1m30s)
-                import re
-                
-                # Buscar horas (h)
-                hours_match = re.search(r'(\d+)h', time_str)
-                if hours_match:
-                    total_seconds += int(hours_match.group(1)) * 3600
-                    time_str = re.sub(r'\d+h', '', time_str)
-                
-                # Buscar minutos (m)
-                minutes_match = re.search(r'(\d+)m', time_str)
-                if minutes_match:
-                    total_seconds += int(minutes_match.group(1)) * 60
-                    time_str = re.sub(r'\d+m', '', time_str)
-                
-                # Buscar segundos (s)
-                seconds_match = re.search(r'(\d+)s', time_str)
-                if seconds_match:
-                    total_seconds += int(seconds_match.group(1))
-                    time_str = re.sub(r'\d+s', '', time_str)
-                
-                # Si queda algo que sea solo número, asumimos que son segundos
-                remaining = re.sub(r'\s+', '', time_str)
-                if remaining.isdigit():
-                    total_seconds += int(remaining)
-                elif remaining and not total_seconds:
-                    # Si no se pudo parsear nada y queda texto
-                    return None
-            
-            return total_seconds if total_seconds > 0 else None
-            
-        except (ValueError, AttributeError):
-            return None
-
-    def create_progress_bar(current, total, bar_length=15):
-        if total == 0:
-            return "─" * bar_length # Barra vacía si no hay duración
-        progress = int((current / total) * bar_length)
-        return "■" * progress + "─" * (bar_length - progress)
-
-    # Reemplaza tu comando now_playing con este
+    # Comando nowplaying con controles interactivos
     @client.command(name="nowplaying", help="Muestra la canción que está sonando ahora mismo.")
     async def now_playing(ctx):
         guild_id = ctx.guild.id
-        if guild_id in song_data and voice_clients[guild_id].is_playing():
-            data = song_data[guild_id]
-            
-            # Calcular tiempo transcurrido
-            elapsed_time = (time.time() - data['start_time']) - data['paused_time']
-            
-            # Si está en pausa ahora mismo, también hay que contar ese tiempo
-            if data['pause_start_time'] > 0:
-                elapsed_time -= (time.time() - data['pause_start_time'])
 
-            # Asegurarse de que el tiempo no exceda la duración
-            elapsed_time = min(elapsed_time, data['duration'])
+        # Verificar que hay una canción sonando (incluyendo pausada)
+        if (guild_id not in song_data or
+            guild_id not in voice_clients or
+            not (voice_clients[guild_id].is_playing() or voice_clients[guild_id].is_paused())):
+            await ctx.send("🚫 **No hay ninguna canción sonando ahora mismo!**")
+            return
 
-            # Formatear todo
-            title = data['title']
-            url = data['url']
-            current_time_str = format_duration(elapsed_time)
-            total_time_str = format_duration(data['duration'])
-            progress_bar = create_progress_bar(elapsed_time, data['duration'])
-            
-            # Crear el embed
-            embed = discord.Embed(
-                title="🎵 Sonando Ahora",
-                description=f"**[{title}]({url})**",
-                color=discord.Color.green()
-            )
+        data = song_data[guild_id]
+
+        # Calcular tiempo transcurrido
+        elapsed_time = (time.time() - data['start_time']) - data['paused_time']
+
+        # Si está en pausa ahora mismo, también hay que contar ese tiempo
+        if data['pause_start_time'] > 0:
+            elapsed_time -= (time.time() - data['pause_start_time'])
+
+        # Asegurarse de que el tiempo no exceda la duración
+        elapsed_time = min(elapsed_time, data['duration'])
+
+        # Formatear todo
+        title = data['title']
+        url = data['url']
+        current_time_str = format_duration(elapsed_time)
+        total_time_str = format_duration(data['duration'])
+        progress_bar = create_progress_bar(elapsed_time, data['duration'])
+
+        # Crear el embed
+        embed = discord.Embed(
+            title="🎵 Sonando Ahora",
+            description=f"**[{title}]({url})**",
+            color=discord.Color.green()
+        )
+        embed.add_field(
+            name="",
+            value=f"`{current_time_str} / {total_time_str}`\n`[{progress_bar}]`",
+            inline=False
+        )
+
+        # Agregar info de queue si hay canciones en la cola
+        if guild_id in queues and queues[guild_id]:
+            next_song = queues[guild_id][0][1]
+            queue_count = len(queues[guild_id])
             embed.add_field(
-                name="",
-                value=f"`{current_time_str} / {total_time_str}`\n`[{progress_bar}]`",
+                name="⏭️ Siguiente",
+                value=f"{next_song}\n*+{queue_count - 1} más en la cola*" if queue_count > 1 else next_song,
                 inline=False
             )
-            embed.set_footer(text=f"Pedido por {ctx.author.display_name}", icon_url=ctx.author.avatar)
-            
-            await ctx.send(embed=embed)
+
+        # Agregar estado de loop en el footer
+        if loop_status.get(guild_id, False):
+            embed.set_footer(
+                text=f"🔁 Loop activado | Pedido por {ctx.author.display_name}",
+                icon_url=ctx.author.avatar
+            )
         else:
-            logging.error("No hay canción sonando.")
-            await ctx.send("🚫 **No hay ninguna canción sonando ahora mismo!**")
+            embed.set_footer(
+                text=f"Pedido por {ctx.author.display_name}",
+                icon_url=ctx.author.avatar
+            )
+
+        # Crear la vista de controles interactivos
+        view = MusicControls(ctx, None, voice_clients, loop_status, queues, song_data, manual_stop)
+
+        # Enviar mensaje con botones
+        message = await ctx.send(embed=embed, view=view)
+
+        # Guardar referencia del mensaje en la vista para actualizaciones
+        view.message = message
+
+        # Actualizar estados iniciales de los botones
+        view.update_button_states()
+        await message.edit(view=view)
 
     @client.command(name="skip", help="Salta la canción actual.")
     async def skip(ctx):
