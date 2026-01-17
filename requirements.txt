@@ -1,0 +1,7 @@
+discord.py
+yt-dlp
+python-dotenv
+spotipy
+aiohttp
+pystray
+pillow
