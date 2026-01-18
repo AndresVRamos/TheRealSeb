@@ -27,7 +27,7 @@ async def run_bot():
     intents = discord.Intents.default()
     intents.message_content = True
 
-    bot = commands.Bot(command_prefix=".", intents=intents, case_insensitive=True)
+    bot = commands.Bot(command_prefix=".", intents=intents, case_insensitive=True, help_command=None)
 
     @bot.event
     async def on_ready():

@@ -92,7 +92,7 @@ class MusicCommands(commands.Cog):
     async def ensure_voice(self, ctx) -> bool:
         """Verifica que el usuario esté en un canal de voz y conecta el bot si es necesario"""
         if not ctx.author.voice or not ctx.author.voice.channel:
-            await ctx.send("Debes estar en un canal de voz para usar este comando.")
+            await ctx.send("🚫 **Debes estar en un canal de voz para usar este comando.**")
             return False
 
         guild_id = ctx.guild.id
@@ -104,7 +104,7 @@ class MusicCommands(commands.Cog):
                 logging.info(f"Conectado a: {ctx.author.voice.channel}")
             except Exception as e:
                 logging.error(f"Error al conectar al canal de voz: {e}")
-                await ctx.send(f"Error al conectar al canal de voz: {e}")
+                await ctx.send(f"⚠️ **Error al conectar al canal de voz:** {e}")
                 return False
         return True
 
@@ -136,11 +136,11 @@ class MusicCommands(commands.Cog):
 
         return _after_play
 
-    async def play_song(self, ctx, link: str, title: str = None):
+    async def play_song(self, ctx, url: str, title: str = None):
         """Reproduce una canción"""
         try:
-            logging.info(f"Attempting to play song: {link}")
-            video_info = await extract_video_info(self.ytdl, link)
+            logging.info(f"Attempting to play song: {url}")
+            video_info = await extract_video_info(self.ytdl, url)
 
             if not video_info:
                 raise Exception("No se pudo obtener el URL del stream")
@@ -158,11 +158,11 @@ class MusicCommands(commands.Cog):
 
             # Guardar información de la canción actual
             self.current_song[guild_id] = actual_title
-            self.current_song_url[guild_id] = link
+            self.current_song_url[guild_id] = url
 
             self.song_data[guild_id] = {
                 'title': actual_title,
-                'url': link,
+                'url': url,
                 'duration': video_info['duration'],
                 'start_time': time.time(),
                 'paused_time': 0,
@@ -184,19 +184,17 @@ class MusicCommands(commands.Cog):
             else:
                 logging.error(f"Audio is NOT playing after start command for: {actual_title}")
 
-            message = f"**Sonando ahora:** [{actual_title}]({link})"
-            if ctx.author.id == 541919270724960256:
-                message += " (requested by the legend)"
+            message = f"🎵 **Sonando ahora:** [{actual_title}]({url})"
 
             await ctx.send(message)
 
         except Exception as e:
             logging.error(f"Error playing song: {e}")
             logging.error(f"Exception traceback:", exc_info=True)
-            await ctx.send(f"Error al reproducir la canción: {e}. Saltando a la siguiente...")
+            await ctx.send(f"⚠️ **Error al reproducir la canción:** {e}. Saltando a la siguiente...")
             await self.play_next(ctx)
 
-    async def play_next(self, ctx, link: str = None):
+    async def play_next(self, ctx, url: str = None):
         """Reproduce la siguiente canción en la queue"""
         guild_id = ctx.guild.id
 
@@ -216,9 +214,9 @@ class MusicCommands(commands.Cog):
                 await self.play_song(ctx, last_link, last_title)
                 return
 
-        if link:
-            logging.info(f"Playing next song: {link}")
-            await self.play_song(ctx, link)
+        if url:
+            logging.info(f"Playing next song: {url}")
+            await self.play_song(ctx, url)
         elif self.queues.get(guild_id):
             next_link, next_title = self.queues[guild_id].pop(0)
             logging.info(f"Playing next song from queue: {next_title}")
@@ -226,10 +224,10 @@ class MusicCommands(commands.Cog):
         else:
             logging.info("La queue está vacía, no hay nada que reproducir.")
             await self.update_presence(False)
-            await ctx.send("La queue está vacía.")
+            await ctx.send("🚫 **La queue está vacía.**")
 
     async def alone_timeout(self, guild_id: int, channel):
-        """Espera 5 minutos y desconecta el bot si sigue solo"""
+        """Espera y desconecta el bot si sigue solo"""
         try:
             await asyncio.sleep(ALONE_TIMEOUT_SECONDS)
 
@@ -238,10 +236,10 @@ class MusicCommands(commands.Cog):
                 human_members = [member for member in voice_channel.members if not member.bot]
 
                 if len(human_members) == 0:
-                    logging.info(f"Bot estuvo solo por 5 minutos en {guild_id}, desconectando...")
+                    logging.info(f"Bot estuvo solo por en {guild_id}, desconectando...")
 
                     try:
-                        await channel.send("Me quedé solo. Ya me voy")
+                        await channel.send("👋 Me quedé solo. Ya me voy 😔")
                     except Exception as e:
                         logging.error(f"Error al enviar mensaje de despedida: {e}")
 
@@ -312,7 +310,7 @@ class MusicCommands(commands.Cog):
     # === COMANDOS ===
 
     @commands.command(name="play", help="Reproduce una canción o playlist desde YouTube o Spotify.")
-    async def play(self, ctx, *, link: str):
+    async def play(self, ctx, *, url: str):
         if not await self.ensure_voice(ctx):
             return
 
@@ -324,53 +322,53 @@ class MusicCommands(commands.Cog):
             self.voice_clients[guild_id].is_playing() or
             self.voice_clients[guild_id].is_paused()
         ):
-            await self.add(ctx, url=link)
+            await self.add(ctx, url=url)
             return
 
         try:
-            if is_spotify_url(link):
-                if is_spotify_playlist(link):
-                    await ctx.send("Procesando playlist de Spotify... Espera.")
-                    songs = await fetch_spotify_playlist_tracks(self.sp, link)
+            if is_spotify_url(url):
+                if is_spotify_playlist(url):
+                    await ctx.send("🔍 **Procesando playlist de Spotify...** Esto puede tardar un momento.")
+                    songs = await fetch_spotify_playlist_tracks(self.sp, url)
                     if not songs:
-                        await ctx.send("La playlist de Spotify está vacía o no se pudo procesar.")
+                        await ctx.send("🚫 **La playlist de Spotify está vacía o no se pudo procesar.**")
                         return
                     first_song_url, first_title = songs[0]
                     self.queues[guild_id].extend(songs[1:])
                     await self.play_song(ctx, first_song_url, first_title)
-                    await ctx.send(f"Añadida la playlist a la queue: {len(songs)} canciones")
+                    await ctx.send(f"➕ **Añadida la playlist a la queue:** {len(songs)} canciones")
                     return
 
-                elif is_spotify_track(link):
-                    yt_link, _ = await get_youtube_url_from_spotify_track(self.sp, link)
+                elif is_spotify_track(url):
+                    yt_link, _ = await get_youtube_url_from_spotify_track(self.sp, url)
                     if not yt_link:
-                        await ctx.send("Error al obtener el enlace de YouTube desde Spotify.")
+                        await ctx.send("⚠️ **Error al obtener el enlace de YouTube desde Spotify.**")
                         return
-                    link = yt_link
+                    url = yt_link
 
-            if is_playlist_url(link):
-                songs = await fetch_playlist_songs(self.ytdl, link)
+            if is_playlist_url(url):
+                songs = await fetch_playlist_songs(self.ytdl, url)
                 if not songs:
-                    await ctx.send("La playlist de YouTube está vacía.")
+                    await ctx.send("🚫 **La playlist de YouTube está vacía.**")
                     return
                 first_song_url, first_title = songs[0]
                 self.queues[guild_id].extend(songs[1:])
-                await ctx.send(f"Añadida la playlist a la queue: {len(songs)} canciones")
+                await ctx.send(f"➕ **Añadida la playlist a la queue:** {len(songs)} canciones")
                 await self.play_song(ctx, first_song_url, first_title)
             else:
-                if not is_youtube_url(link):
-                    link = await search_youtube(link)
-                    if not link:
-                        await ctx.send("No se encontró ningún resultado en YouTube.")
+                if not is_youtube_url(url):
+                    url = await search_youtube(url)
+                    if not url:
+                        await ctx.send("⚠️ **No se encontró ningún resultado en YouTube.**")
                         return
                 else:
-                    link = clean_video_url(link)
+                    url = clean_video_url(url)
 
-                await self.play_song(ctx, link)
+                await self.play_song(ctx, url)
 
         except Exception as e:
             logging.error(f"Error al reproducir la canción: {e}")
-            await ctx.send(f"Error al reproducir la canción: {e}")
+            await ctx.send(f"⚠️ **Error al reproducir la canción:** {e}")
 
     @commands.command(name="add", help="Añade una canción o playlist a la queue.")
     async def add(self, ctx, *, url: str):
@@ -384,53 +382,53 @@ class MusicCommands(commands.Cog):
         try:
             if is_spotify_url(url):
                 if is_spotify_playlist(url):
-                    await ctx.send("Procesando playlist de Spotify... Espera.")
+                    await ctx.send("🔍 **Procesando playlist de Spotify...** Esto puede tardar un momento.")
                     songs = await fetch_spotify_playlist_tracks(self.sp, url)
                     if not songs:
-                        await ctx.send("La playlist de Spotify está vacía o no se pudo procesar.")
+                        await ctx.send("🚫 **La playlist de Spotify está vacía o no se pudo procesar.**")
                         return
                     self.queues[guild_id].extend(songs)
-                    await ctx.send(f"Añadida la playlist a la queue: {len(songs)} canciones")
+                    await ctx.send(f"➕ **Añadida la playlist a la queue:** {len(songs)} canciones")
                     return
                 else:
                     track_id = extract_track_id_from_url(url)
                     yt_link, title = await get_youtube_url_from_spotify_track(self.sp, url)
                     if not yt_link:
-                        await ctx.send("Error al obtener el enlace de YouTube desde Spotify.")
+                        await ctx.send("⚠️ **Error al obtener el enlace de YouTube desde Spotify.**")
                         return
                     self.queues[guild_id].append((yt_link, title))
-                    await ctx.send(f"Añadida a la queue: *{title}*")
+                    await ctx.send(f"➕ **Añadida a la queue:** *{title}*")
                     return
 
             if is_playlist_url(url):
                 songs = await fetch_playlist_songs(self.ytdl, url)
                 if not songs:
-                    await ctx.send("La playlist de YouTube está vacía.")
+                    await ctx.send("🚫 **La playlist de YouTube está vacía.**")
                     return
                 self.queues[guild_id].extend(songs)
-                await ctx.send(f"Añadida la playlist a la queue: {len(songs)} canciones")
+                await ctx.send(f"➕ **Añadida la playlist a la queue:** {len(songs)} canciones")
             else:
                 if not is_youtube_url(url):
                     url = await search_youtube(url)
                     if not url:
-                        await ctx.send("No se encontró ningún resultado en YouTube.")
+                        await ctx.send("⚠️ **No se encontró ningún resultado en YouTube.**")
                         return
 
                 video_info = await extract_video_info(self.ytdl, url)
                 title = video_info['title']
                 self.queues[guild_id].append((url, title))
-                await ctx.send(f"Añadida a la queue: *{title}*")
+                await ctx.send(f"➕ **Añadida a la queue:** *{title}*")
 
         except Exception as e:
             logging.error(f"Error añadiendo canción a la queue: {e}")
-            await ctx.send(f"Error al añadir la canción a la queue: {e}")
+            await ctx.send(f"⚠️ **Error al añadir la canción a la queue:** {e}")
 
     @commands.command(name="queue", help="Muestra la queue actual.")
     async def show_queue(self, ctx):
         guild_id = ctx.guild.id
 
         if guild_id not in self.queues or not self.queues[guild_id]:
-            await ctx.send("La queue está vacía!")
+            await ctx.send("🚫 **La queue está vacía!**")
             return
 
         items_per_page = 25
@@ -460,42 +458,42 @@ class MusicCommands(commands.Cog):
                 if is_spotify_playlist(url):
                     songs = await fetch_spotify_playlist_tracks(self.sp, url)
                     if not songs:
-                        await ctx.send("La playlist de Spotify está vacía.")
+                        await ctx.send("🚫 **La playlist de Spotify está vacía.**")
                         return
                     for song in reversed(songs):
                         self.queues[guild_id].insert(0, song)
-                    await ctx.send(f"Añadida la playlist a la posición siguiente: {len(songs)} canciones")
+                    await ctx.send(f"➕ **Añadida la playlist a la posición siguiente:** {len(songs)} canciones")
                     return
                 else:
                     yt_link, title = await get_youtube_url_from_spotify_track(self.sp, url)
                     if not yt_link:
-                        await ctx.send("Error al obtener el enlace de YouTube desde Spotify.")
+                        await ctx.send("⚠️ **Error al obtener el enlace de YouTube desde Spotify.**")
                         return
                     url = yt_link
 
             if is_playlist_url(url):
                 songs = await fetch_playlist_songs(self.ytdl, url)
                 if not songs:
-                    await ctx.send("La playlist de YouTube está vacía.")
+                    await ctx.send("🚫 **La playlist de YouTube está vacía.**")
                     return
                 for song in reversed(songs):
                     self.queues[guild_id].insert(0, song)
-                await ctx.send(f"Añadida la playlist a la posición siguiente: {len(songs)} canciones")
+                await ctx.send(f"➕ **Añadida la playlist a la posición siguiente:** {len(songs)} canciones")
             else:
                 if not is_youtube_url(url):
                     url = await search_youtube(url)
                     if not url:
-                        await ctx.send("No se encontró ningún resultado en YouTube.")
+                        await ctx.send("⚠️ **No se encontró ningún resultado en YouTube.**")
                         return
 
                 video_info = await extract_video_info(self.ytdl, url)
                 title = video_info['title']
                 self.queues[guild_id].insert(0, (url, title))
-                await ctx.send(f"*{title}* ha sido añadida como la siguiente canción!")
+                await ctx.send(f"➕ ***{title}*** **ha sido añadida como la siguiente canción!**")
 
         except Exception as e:
             logging.error(f"Error en playnext: {e}")
-            await ctx.send(f"Error al agregar la canción a la posición siguiente: {e}")
+            await ctx.send(f"⚠️ **Error al agregar la canción a la posición siguiente:** {e}")
 
     @commands.command(name="nowplaying", help="Muestra la canción que está sonando ahora mismo.")
     async def now_playing(self, ctx):
@@ -505,7 +503,7 @@ class MusicCommands(commands.Cog):
             guild_id not in self.voice_clients or
             not (self.voice_clients[guild_id].is_playing() or
                  self.voice_clients[guild_id].is_paused())):
-            await ctx.send("No hay ninguna canción sonando ahora mismo!")
+            await ctx.send("🚫 **No hay ninguna canción sonando ahora mismo!**")
             return
 
         data = self.song_data[guild_id]
@@ -522,7 +520,7 @@ class MusicCommands(commands.Cog):
         progress_bar = create_progress_bar(elapsed_time, data['duration'])
 
         embed = discord.Embed(
-            title="Sonando Ahora",
+            title="🎵 Sonando Ahora",
             description=f"**[{title}]({url})**",
             color=discord.Color.green()
         )
@@ -536,14 +534,14 @@ class MusicCommands(commands.Cog):
             next_song = self.queues[guild_id][0][1]
             queue_count = len(self.queues[guild_id])
             embed.add_field(
-                name="Siguiente",
+                name="⏭️ Siguiente",
                 value=f"{next_song}\n*+{queue_count - 1} más en la cola*" if queue_count > 1 else next_song,
                 inline=False
             )
 
         if self.loop_status.get(guild_id, False):
             embed.set_footer(
-                text=f"Loop activado | Pedido por {ctx.author.display_name}",
+                text=f"🔁 Loop activado | Pedido por {ctx.author.display_name}",
                 icon_url=ctx.author.avatar
             )
         else:
@@ -569,25 +567,25 @@ class MusicCommands(commands.Cog):
 
         guild_id = ctx.guild.id
         if await skip_song(guild_id, self.voice_clients):
-            await ctx.send("Canción saltada!")
+            await ctx.send("⏭️ **Canción saltada!**")
         else:
-            await ctx.send("No hay ninguna canción reproduciéndose para saltar!")
+            await ctx.send("🚫 **No hay ninguna canción reproduciéndose para saltar!**")
 
     @commands.command(name="skipto", help="Salta a una canción específica en la queue.")
-    async def skip_to(self, ctx, position: int):
+    async def skip_to(self, ctx, posicion: int):
         guild_id = ctx.guild.id
 
-        if guild_id not in self.queues or not (1 <= position <= len(self.queues[guild_id])):
-            await ctx.send("Posición inválida en la queue.")
+        if guild_id not in self.queues or not (1 <= posicion <= len(self.queues[guild_id])):
+            await ctx.send("🚫 **Posición inválida en la queue.**")
             return
 
         if guild_id in self.voice_clients and self.voice_clients[guild_id].is_playing():
             self.voice_clients[guild_id].stop()
 
-        selected_song = self.queues[guild_id].pop(position - 1)
-        self.queues[guild_id].insert(0, selected_song)
+        cancion = self.queues[guild_id].pop(posicion - 1)
+        self.queues[guild_id].insert(0, cancion)
 
-        await ctx.send(f"Saltando a la canción número {position}: *{selected_song[1]}*!")
+        await ctx.send(f"⏩ **Saltando a la canción número {posicion}:** *{cancion[1]}*!")
 
     @commands.command(name="clear", help="Limpia la queue actual.")
     async def clear_queue(self, ctx):
@@ -598,9 +596,9 @@ class MusicCommands(commands.Cog):
         if guild_id in self.queues:
             logging.info("Limpiando la queue.")
             self.queues[guild_id].clear()
-            await ctx.send("Se limpió la cola de canciones!")
+            await ctx.send("🧹 **Se limpió la cola de canciones!**")
         else:
-            await ctx.send("No hay cola que limpiar!")
+            await ctx.send("🚫 **No hay cola que limpiar!**")
 
     @commands.command(name="pause", help="Pausa la reproducción de la canción actual.")
     async def pause(self, ctx):
@@ -609,9 +607,9 @@ class MusicCommands(commands.Cog):
 
         guild_id = ctx.guild.id
         if await pause_playback(guild_id, self.song_data, self.voice_clients):
-            await ctx.send("Reproducción pausada!")
+            await ctx.send("⏸️ **Reproducción pausada!**")
         else:
-            await ctx.send("No hay nada reproduciéndose para pausar!")
+            await ctx.send("🚫 **No hay nada reproduciéndose para pausar!**")
 
     @commands.command(name="resume", help="Reanuda la reproducción si está pausada.")
     async def resume(self, ctx):
@@ -620,9 +618,9 @@ class MusicCommands(commands.Cog):
 
         guild_id = ctx.guild.id
         if await resume_playback(guild_id, self.song_data, self.voice_clients):
-            await ctx.send("Reproducción reanudada!")
+            await ctx.send("▶️ **Reproducción reanudada!**")
         else:
-            await ctx.send("No hay nada pausado para reanudar!")
+            await ctx.send("🚫 **No hay nada pausado para reanudar!**")
 
     @commands.command(name="loop", help="Activa o desactiva el loop de la canción actual.")
     async def loop_cmd(self, ctx):
@@ -633,9 +631,9 @@ class MusicCommands(commands.Cog):
         is_looping = toggle_loop(guild_id, self.loop_status)
 
         if is_looping:
-            await ctx.send("Loop activado!")
+            await ctx.send("🔁 **Loop activado!**")
         else:
-            await ctx.send("Loop desactivado!")
+            await ctx.send("🔁 **Loop desactivado!**")
 
     @commands.command(name="stop", help="Detiene la reproducción y limpia la queue.")
     async def stop(self, ctx):
@@ -645,47 +643,47 @@ class MusicCommands(commands.Cog):
         guild_id = ctx.guild.id
         if await stop_playback(guild_id, self.voice_clients, self.queues, self.manual_stop):
             await self.update_presence(False)
-            await ctx.send("Reproducción detenida!")
+            await ctx.send("⏹️ **Reproducción detenida!**")
         else:
-            await ctx.send("No hay ninguna canción sonando!")
+            await ctx.send("🚫 **No hay ninguna canción sonando!**")
 
     @commands.command(name="shuffle", help="Mezcla aleatoriamente las canciones en la queue.")
     async def shuffle(self, ctx):
         guild_id = ctx.guild.id
 
         if await shuffle_queue(guild_id, self.queues):
-            await ctx.send("Queue mezclada!")
+            await ctx.send("🔀 **Queue mezclada!**")
         else:
-            await ctx.send("La queue está vacía!")
+            await ctx.send("🚫 **La queue está vacía!**")
 
     @commands.command(name="seek", help="Salta a un timestamp específico de la canción (ej: 1m30s, 90s, 2:15)")
-    async def seek(self, ctx, *, time_input: str):
+    async def seek(self, ctx, *, timestamp: str):
         if not await self.ensure_voice(ctx):
             return
 
         guild_id = ctx.guild.id
 
         if guild_id not in self.voice_clients or not self.voice_clients[guild_id].is_connected():
-            await ctx.send("No estoy conectado a un canal de voz.")
+            await ctx.send("🚫 **No estoy conectado a un canal de voz.**")
             return
 
         if not self.voice_clients[guild_id].is_playing() and not self.voice_clients[guild_id].is_paused():
-            await ctx.send("No hay ninguna canción reproduciéndose.")
+            await ctx.send("🚫 **No hay ninguna canción reproduciéndose.**")
             return
 
         if guild_id not in self.song_data:
-            await ctx.send("No hay información de la canción actual.")
+            await ctx.send("🚫 **No hay información de la canción actual.**")
             return
 
-        seek_seconds = parse_time_string(time_input)
+        seek_seconds = parse_time_string(timestamp)
         if seek_seconds is None:
-            await ctx.send("Formato de tiempo inválido. Usa formatos como: 1m30s, 90s, 2:15, 1:02:30")
+            await ctx.send("⚠️ **Formato de tiempo inválido.** Usa formatos como: 1m30s, 90s, 2:15, 1:02:30")
             return
 
         song_duration = self.song_data[guild_id]['duration']
         if seek_seconds >= song_duration:
             formatted_duration = format_duration(song_duration)
-            await ctx.send(f"El tiempo especificado ({format_duration(seek_seconds)}) excede la duración de la canción ({formatted_duration}).")
+            await ctx.send(f"⚠️ **El tiempo especificado ({format_duration(seek_seconds)}) excede la duración de la canción ({formatted_duration}).**")
             return
 
         try:
@@ -711,33 +709,33 @@ class MusicCommands(commands.Cog):
             self.voice_clients[guild_id].play(player, after=self.after_play(ctx))
 
             seek_time_str = format_duration(seek_seconds)
-            await ctx.send(f"Saltando a {seek_time_str} en: *{current_title}*")
+            await ctx.send(f"⏩ **Saltando a {seek_time_str} en:** *{current_title}*")
 
         except Exception as e:
             self.seek_in_progress[guild_id] = False
             logging.error(f"Error en seek: {e}")
-            await ctx.send(f"Error al hacer seek: {e}")
+            await ctx.send(f"⚠️ **Error al hacer seek:** {e}")
 
     @commands.command(name="move", help="Mueve una canción de una posición a otra en la queue.")
-    async def move(self, ctx, from_pos: int, to_pos: int):
+    async def move(self, ctx, desde: int, hasta: int):
         guild_id = ctx.guild.id
 
         if guild_id not in self.queues or not self.queues[guild_id]:
-            await ctx.send("La queue está vacía!")
+            await ctx.send("🚫 **La queue está vacía!**")
             return
 
         queue_len = len(self.queues[guild_id])
-        if not (1 <= from_pos <= queue_len and 1 <= to_pos <= queue_len):
-            await ctx.send(f"Las posiciones deben estar dentro del rango de la queue (1 a {queue_len}).")
+        if not (1 <= desde <= queue_len and 1 <= hasta <= queue_len):
+            await ctx.send(f"🚫 **Las posiciones deben estar dentro del rango de la queue (1 a {queue_len}).**")
             return
 
-        if from_pos == to_pos:
-            await ctx.send("La canción ya está en esa posición.")
+        if desde == hasta:
+            await ctx.send("ℹ️ **La canción ya está en esa posición.**")
             return
 
-        song = self.queues[guild_id].pop(from_pos - 1)
-        self.queues[guild_id].insert(to_pos - 1, song)
-        await ctx.send(f"Movida *{song[1]}* de la posición {from_pos} a la {to_pos}.")
+        song = self.queues[guild_id].pop(desde - 1)
+        self.queues[guild_id].insert(hasta - 1, song)
+        await ctx.send(f"🔀 **Movida** *{song[1]}* **de la posición {desde} a la {hasta}.**")
 
     @commands.command(name="leave", help="Desconecta el bot del canal de voz y borra la queue.")
     async def leave(self, ctx):
@@ -749,29 +747,33 @@ class MusicCommands(commands.Cog):
             if guild_id in self.queues:
                 self.queues[guild_id].clear()
             await self.update_presence(False)
-            await ctx.send("Me he desconectado del canal de voz y la queue ha sido borrada.")
+            await ctx.send("👋 **Me he desconectado del canal de voz y la queue ha sido borrada.**")
         else:
-            await ctx.send("No estoy conectado a ningún canal de voz.")
+            await ctx.send("🚫 **No estoy conectado a ningún canal de voz.**")
 
-    @commands.command(name="commands", help="Muestra una lista de comandos disponibles.")
+    @commands.command(name="help", help="Muestra una lista de comandos disponibles.")
     async def show_commands(self, ctx):
-        embed = discord.Embed(title="Comandos disponibles", color=discord.Color.blue())
-        embed.add_field(name=".play <enlace>", value="Reproduce una canción o playlist desde YouTube o Spotify.", inline=False)
-        embed.add_field(name=".add <enlace>", value="Añade una canción o playlist a la queue.", inline=False)
-        embed.add_field(name=".playnext <enlace>", value="Agrega la canción a la siguiente posición en la queue.", inline=False)
-        embed.add_field(name=".queue", value="Muestra la queue actual.", inline=False)
-        embed.add_field(name=".nowplaying", value="Muestra la canción que está sonando ahora mismo.", inline=False)
-        embed.add_field(name=".skip", value="Salta la canción actual.", inline=False)
-        embed.add_field(name=".skipto <posición>", value="Salta a una canción específica en la queue.", inline=False)
-        embed.add_field(name=".seek <tiempo>", value="Salta a un timestamp específico (ej: 1m30s, 90s, 2:15).", inline=False)
-        embed.add_field(name=".move <de> <a>", value="Mueve una canción de una posición a otra en la queue.", inline=False)
-        embed.add_field(name=".clear", value="Limpia la queue actual.", inline=False)
-        embed.add_field(name=".pause", value="Pausa la reproducción de la canción actual.", inline=False)
-        embed.add_field(name=".resume", value="Reanuda la reproducción si está pausada.", inline=False)
-        embed.add_field(name=".loop", value="Activa o desactiva el loop de la canción actual.", inline=False)
-        embed.add_field(name=".stop", value="Detiene la reproducción y limpia la queue.", inline=False)
-        embed.add_field(name=".shuffle", value="Mezcla aleatoriamente las canciones en la queue.", inline=False)
-        embed.add_field(name=".leave", value="Desconecta el bot del canal de voz y borra la queue.", inline=False)
+        embed = discord.Embed(title="📋 Comandos disponibles", color=discord.Color.blue())
+
+        for command in sorted(self.bot.commands, key=lambda c: c.name):
+            # Construir el nombre con parámetros
+            params = []
+            for param_name, param in command.clean_params.items():
+                if param.default == param.empty:
+                    params.append(f"<{param_name}>")
+                else:
+                    params.append(f"[{param_name}]")
+
+            cmd_signature = f".{command.name}"
+            if params:
+                cmd_signature += " " + " ".join(params)
+
+            # Usar la descripción del comando o un texto por defecto
+            description = command.help or "Sin descripción"
+
+            embed.add_field(name=cmd_signature, value=description, inline=False)
+
+        embed.set_footer(text=f"Total: {len(self.bot.commands)} comandos")
         await ctx.send(embed=embed)
 
 
