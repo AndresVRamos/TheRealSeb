@@ -16,6 +16,77 @@ from core.playback import (
 )
 
 
+def create_now_playing_embed(song_data, queues, loop_status, guild_id, author):
+    """
+    Crea el embed de 'Sonando Ahora' con la información de la canción actual.
+
+    Args:
+        song_data: Diccionario con datos de canciones por guild
+        queues: Diccionario con colas por guild
+        loop_status: Diccionario con estado de loop por guild
+        guild_id: ID del servidor
+        author: Usuario que pidió la canción (para el footer)
+
+    Returns:
+        discord.Embed con la información de la canción
+    """
+    if guild_id not in song_data:
+        return discord.Embed(
+            title="🚫 No hay canción",
+            description="No hay ninguna canción reproduciéndose ahora mismo.",
+            color=discord.Color.red()
+        )
+
+    data = song_data[guild_id]
+
+    # Calcular tiempo transcurrido
+    elapsed_time = (time.time() - data['start_time']) - data['paused_time']
+    if data['pause_start_time'] > 0:
+        elapsed_time -= (time.time() - data['pause_start_time'])
+    elapsed_time = max(0, min(elapsed_time, data['duration']))
+
+    title = data['title']
+    url = data['url']
+    current_time_str = format_duration(elapsed_time)
+    total_time_str = format_duration(data['duration'])
+    progress_bar = create_progress_bar(elapsed_time, data['duration'])
+
+    embed = discord.Embed(
+        title="🎵 Sonando Ahora",
+        description=f"**[{title}]({url})**",
+        color=discord.Color.red()
+    )
+    embed.add_field(
+        name="",
+        value=f"`{current_time_str} / {total_time_str}`\n`[{progress_bar}]`",
+        inline=False
+    )
+
+    # Mostrar siguiente canción si hay queue
+    if guild_id in queues and queues[guild_id]:
+        next_song = queues[guild_id][0][1]
+        queue_count = len(queues[guild_id])
+        embed.add_field(
+            name="⏭️ Siguiente",
+            value=f"{next_song}\n*+{queue_count - 1} más en la cola*" if queue_count > 1 else next_song,
+            inline=False
+        )
+
+    # Footer con estado de loop
+    if loop_status.get(guild_id, False):
+        embed.set_footer(
+            text=f"🔁 Loop activado | Pedido por {author.display_name}",
+            icon_url=author.avatar
+        )
+    else:
+        embed.set_footer(
+            text=f"Pedido por {author.display_name}",
+            icon_url=author.avatar
+        )
+
+    return embed
+
+
 class MusicControls(discord.ui.View):
     """Vista con botones de control de reproducción"""
 
@@ -94,12 +165,12 @@ class MusicControls(discord.ui.View):
 
         self.children[4].disabled = False
 
-    def _create_now_playing_embed(self):
-        """Crear embed con información de la canción actual"""
+    def _get_status_embed(self):
+        """Obtiene el embed del estado actual: canción sonando o mensaje de error si no hay reproducción"""
         guild_id = self.guild_id
 
-        if (guild_id not in self.song_data or
-                guild_id not in self.voice_clients or
+        # Verificar si hay reproducción activa
+        if (guild_id not in self.voice_clients or
                 not (self.voice_clients[guild_id].is_playing() or
                      self.voice_clients[guild_id].is_paused())):
             return discord.Embed(
@@ -108,61 +179,20 @@ class MusicControls(discord.ui.View):
                 color=discord.Color.red()
             )
 
-        data = self.song_data[guild_id]
-
-        elapsed_time = (time.time() - data['start_time']) - data['paused_time']
-        if data['pause_start_time'] > 0:
-            elapsed_time -= (time.time() - data['pause_start_time'])
-        elapsed_time = min(elapsed_time, data['duration'])
-
-        title = data['title']
-        url = data['url']
-        current_time_str = format_duration(elapsed_time)
-        total_time_str = format_duration(data['duration'])
-        progress_bar = create_progress_bar(elapsed_time, data['duration'])
-
-        embed = discord.Embed(
-            title="🎵 Sonando Ahora",
-            description=f"**[{title}]({url})**",
-            color=discord.Color.green()
+        return create_now_playing_embed(
+            self.song_data, self.queues, self.loop_status,
+            guild_id, self.ctx.author
         )
-        embed.add_field(
-            name="",
-            value=f"`{current_time_str} / {total_time_str}`\n`[{progress_bar}]`",
-            inline=False
-        )
-
-        if guild_id in self.queues and self.queues[guild_id]:
-            next_song = self.queues[guild_id][0][1]
-            queue_count = len(self.queues[guild_id])
-            embed.add_field(
-                name="⏭️ Siguiente",
-                value=f"{next_song}\n*+{queue_count - 1} más en la cola*" if queue_count > 1 else next_song,
-                inline=False
-            )
-
-        if self.loop_status.get(guild_id, False):
-            embed.set_footer(
-                text=f"🔁 Loop activado | Pedido por {self.ctx.author.display_name}",
-                icon_url=self.ctx.author.avatar
-            )
-        else:
-            embed.set_footer(
-                text=f"Pedido por {self.ctx.author.display_name}",
-                icon_url=self.ctx.author.avatar
-            )
-
-        return embed
 
     async def update_embed(self, interaction: discord.Interaction):
         """Actualizar el embed con información actual"""
-        embed = self._create_now_playing_embed()
+        embed = self._get_status_embed()
         self.update_button_states()
         await interaction.response.edit_message(embed=embed, view=self)
 
     async def update_embed_after_response(self, interaction: discord.Interaction):
         """Actualizar embed después de ya haber enviado una respuesta ephemeral"""
-        embed = self._create_now_playing_embed()
+        embed = self._get_status_embed()
         self.update_button_states()
         await self.message.edit(embed=embed, view=self)
 

@@ -10,7 +10,7 @@ import time
 import random
 import logging
 
-from core.formatters import format_duration, parse_time_string, create_progress_bar
+from core.formatters import format_duration, parse_time_string
 from core.playback import (
     pause_playback,
     resume_playback,
@@ -38,7 +38,7 @@ from core.spotify_handler import (
     extract_track_id_from_url
 )
 from views.queue_paginator import QueuePaginator
-from views.music_controls import MusicControls
+from views.music_controls import MusicControls, create_now_playing_embed
 
 
 class MusicCommands(commands.Cog):
@@ -59,6 +59,7 @@ class MusicCommands(commands.Cog):
         self.seek_in_progress = {}
         self.alone_timeout_tasks = {}
         self.last_text_channel = {}
+        self.active_controls_view = {}  # Vista de controles activa por servidor
 
         # Clientes externos
         self.ytdl = create_ytdl()
@@ -69,6 +70,19 @@ class MusicCommands(commands.Cog):
             'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
             'options': '-vn -filter:a "volume=0.375"'
         }
+
+    async def disable_previous_controls(self, guild_id: int):
+        """Deshabilita los controles del embed anterior si existe"""
+        if guild_id in self.active_controls_view:
+            old_view = self.active_controls_view[guild_id]
+            try:
+                for item in old_view.children:
+                    item.disabled = True
+                if old_view.message:
+                    await old_view.message.edit(view=old_view)
+            except Exception as e:
+                logging.debug(f"No se pudo deshabilitar controles anteriores: {e}")
+            del self.active_controls_view[guild_id]
 
     async def update_presence(self, listening: bool, song_title: str = ""):
         """Actualiza la presencia del bot"""
@@ -184,9 +198,27 @@ class MusicCommands(commands.Cog):
             else:
                 logging.error(f"Audio is NOT playing after start command for: {actual_title}")
 
-            message = f"🎵 **Sonando ahora:** [{actual_title}]({url})"
+            # Deshabilitar controles anteriores si existen
+            await self.disable_previous_controls(guild_id)
 
-            await ctx.send(message)
+            # Crear embed y vista con controles
+            embed = create_now_playing_embed(
+                self.song_data, self.queues, self.loop_status,
+                guild_id, ctx.author
+            )
+
+            view = MusicControls(
+                ctx, None, self.voice_clients, self.loop_status,
+                self.queues, self.song_data, self.manual_stop
+            )
+
+            message = await ctx.send(embed=embed, view=view)
+            view.message = message
+            view.update_button_states()
+            await message.edit(view=view)
+
+            # Guardar la vista activa
+            self.active_controls_view[guild_id] = view
 
         except Exception as e:
             logging.error(f"Error playing song: {e}")
@@ -506,49 +538,13 @@ class MusicCommands(commands.Cog):
             await ctx.send("🚫 **No hay ninguna canción sonando ahora mismo!**")
             return
 
-        data = self.song_data[guild_id]
+        # Deshabilitar controles anteriores si existen
+        await self.disable_previous_controls(guild_id)
 
-        elapsed_time = (time.time() - data['start_time']) - data['paused_time']
-        if data['pause_start_time'] > 0:
-            elapsed_time -= (time.time() - data['pause_start_time'])
-        elapsed_time = min(elapsed_time, data['duration'])
-
-        title = data['title']
-        url = data['url']
-        current_time_str = format_duration(elapsed_time)
-        total_time_str = format_duration(data['duration'])
-        progress_bar = create_progress_bar(elapsed_time, data['duration'])
-
-        embed = discord.Embed(
-            title="🎵 Sonando Ahora",
-            description=f"**[{title}]({url})**",
-            color=discord.Color.green()
+        embed = create_now_playing_embed(
+            self.song_data, self.queues, self.loop_status,
+            guild_id, ctx.author
         )
-        embed.add_field(
-            name="",
-            value=f"`{current_time_str} / {total_time_str}`\n`[{progress_bar}]`",
-            inline=False
-        )
-
-        if guild_id in self.queues and self.queues[guild_id]:
-            next_song = self.queues[guild_id][0][1]
-            queue_count = len(self.queues[guild_id])
-            embed.add_field(
-                name="⏭️ Siguiente",
-                value=f"{next_song}\n*+{queue_count - 1} más en la cola*" if queue_count > 1 else next_song,
-                inline=False
-            )
-
-        if self.loop_status.get(guild_id, False):
-            embed.set_footer(
-                text=f"🔁 Loop activado | Pedido por {ctx.author.display_name}",
-                icon_url=ctx.author.avatar
-            )
-        else:
-            embed.set_footer(
-                text=f"Pedido por {ctx.author.display_name}",
-                icon_url=ctx.author.avatar
-            )
 
         view = MusicControls(
             ctx, None, self.voice_clients, self.loop_status,
@@ -559,6 +555,9 @@ class MusicCommands(commands.Cog):
         view.message = message
         view.update_button_states()
         await message.edit(view=view)
+
+        # Guardar la vista activa
+        self.active_controls_view[guild_id] = view
 
     @commands.command(name="skip", help="Salta la canción actual.")
     async def skip(self, ctx):
