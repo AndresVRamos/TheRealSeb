@@ -69,6 +69,6 @@ def parse_time_string(time_str):
 def create_progress_bar(current, total, bar_length=15):
     """Crea una barra de progreso visual"""
     if total == 0:
-        return "─" * bar_length  # Barra vacía si no hay duración
+        return "─" * bar_length
     progress = int((current / total) * bar_length)
     return "■" * progress + "─" * (bar_length - progress)

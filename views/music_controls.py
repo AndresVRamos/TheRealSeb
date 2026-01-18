@@ -4,6 +4,7 @@ Controles interactivos de música con botones para el comando nowplaying
 import discord
 import time
 import logging
+import asyncio
 
 from core.formatters import format_duration, create_progress_bar
 from core.playback import (
@@ -105,6 +106,7 @@ class MusicControls(discord.ui.View):
         self.manual_stop = manual_stop
         self.guild_id = ctx.guild.id
         self.bot = bot
+        self.update_task = None  # Tarea de actualización del embed
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         """Verificar que el usuario esté en el mismo canal de voz que el bot"""
@@ -126,12 +128,57 @@ class MusicControls(discord.ui.View):
 
     async def on_timeout(self):
         """Deshabilitar todos los botones cuando ocurre el timeout"""
+        self.cancel_update_loop()
         for item in self.children:
             item.disabled = True
         try:
             await self.message.edit(view=self)
         except:
             pass
+
+    def start_update_loop(self):
+        """Inicia el loop de actualización del embed cada 15 segundos"""
+        if self.update_task is None or self.update_task.done():
+            self.update_task = asyncio.create_task(self._update_loop())
+
+    def cancel_update_loop(self):
+        """Cancela el loop de actualización"""
+        if self.update_task and not self.update_task.done():
+            self.update_task.cancel()
+            self.update_task = None
+
+    async def _update_loop(self):
+        """Loop interno que actualiza el embed periódicamente"""
+        try:
+            while True:
+                await asyncio.sleep(15)
+
+                # Verificar si todavía está reproduciendo
+                if (self.guild_id not in self.voice_clients or
+                    not self.voice_clients[self.guild_id].is_connected() or
+                    not (self.voice_clients[self.guild_id].is_playing() or
+                         self.voice_clients[self.guild_id].is_paused())):
+                    break
+
+                if not self.message:
+                    break
+
+                # Actualizar el embed
+                try:
+                    embed = create_now_playing_embed(
+                        self.song_data, self.queues, self.loop_status,
+                        self.guild_id, self.ctx.author
+                    )
+                    self.update_button_states()
+                    await self.message.edit(embed=embed, view=self)
+                except Exception as e:
+                    logging.debug(f"Error actualizando embed: {e}")
+                    break
+
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logging.debug(f"Error en _update_loop: {e}")
 
     def update_button_states(self):
         """Actualizar estados de botones según el estado actual de reproducción"""
@@ -262,6 +309,9 @@ class MusicControls(discord.ui.View):
     @discord.ui.button(label="Stop", emoji="⏹️", style=discord.ButtonStyle.danger, custom_id="stop")
     async def stop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         guild_id = self.guild_id
+
+        # Cancelar tarea de actualización del embed
+        self.cancel_update_loop()
 
         if await stop_playback(guild_id, self.voice_clients, self.queues, self.manual_stop, bot=self.bot):
             logging.info(f"Reproducción detenida vía botón por {interaction.user}")

@@ -76,6 +76,7 @@ class MusicCommands(commands.Cog):
         if guild_id in self.active_controls_view:
             old_view = self.active_controls_view[guild_id]
             try:
+                old_view.cancel_update_loop()
                 for item in old_view.children:
                     item.disabled = True
                 if old_view.message:
@@ -180,7 +181,6 @@ class MusicCommands(commands.Cog):
             else:
                 logging.error(f"Audio is NOT playing after start command for: {actual_title}")
 
-            # Deshabilitar controles anteriores si existen
             await self.disable_previous_controls(guild_id)
 
             # Crear embed y vista con controles
@@ -202,6 +202,7 @@ class MusicCommands(commands.Cog):
 
             # Guardar la vista activa
             self.active_controls_view[guild_id] = view
+            view.start_update_loop()
 
         except Exception as e:
             logging.error(f"Error playing song: {e}")
@@ -259,6 +260,8 @@ class MusicCommands(commands.Cog):
                         logging.error(f"Error al enviar mensaje de despedida: {e}")
 
                     self.manual_stop[guild_id] = True
+                    if guild_id in self.active_controls_view:
+                        self.active_controls_view[guild_id].cancel_update_loop()
                     self.voice_clients[guild_id].stop()
                     if guild_id in self.queues:
                         self.queues[guild_id].clear()
@@ -542,6 +545,7 @@ class MusicCommands(commands.Cog):
 
         # Guardar la vista activa
         self.active_controls_view[guild_id] = view
+        view.start_update_loop()
 
     @commands.command(name="skip", help="Salta la canción actual.")
     async def skip(self, ctx):
@@ -624,6 +628,8 @@ class MusicCommands(commands.Cog):
             return
 
         guild_id = ctx.guild.id
+        if guild_id in self.active_controls_view:
+            self.active_controls_view[guild_id].cancel_update_loop()
         if await stop_playback(guild_id, self.voice_clients, self.queues, self.manual_stop, bot=self.bot):
             await ctx.send("⏹️ **Reproducción detenida!**")
         else:
@@ -724,11 +730,13 @@ class MusicCommands(commands.Cog):
         guild_id = ctx.guild.id
 
         if guild_id in self.voice_clients:
+            if guild_id in self.active_controls_view:
+                self.active_controls_view[guild_id].cancel_update_loop()
             await self.voice_clients[guild_id].disconnect()
             del self.voice_clients[guild_id]
             if guild_id in self.queues:
                 self.queues[guild_id].clear()
-            await update_presence(self.bot,False)
+            await update_presence(self.bot, False)
             await ctx.send("👋 **Me he desconectado del canal de voz y la queue ha sido borrada.**")
         else:
             await ctx.send("🚫 **No estoy conectado a ningún canal de voz.**")
