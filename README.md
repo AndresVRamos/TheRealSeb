@@ -67,7 +67,7 @@ python maniac.py
 
 ## 📝 Próximas Mejoras
 
-Ver [Mejoras.txt](Mejoras.txt) para la lista completa de features planeadas.
+Ver [Mejoras.md](Mejoras.md) para la lista completa de features planeadas.
 
 ## 📄 Licencia
 
