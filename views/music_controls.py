@@ -262,6 +262,5 @@ class MusicControls(discord.ui.View):
         if await stop_playback(guild_id, self.voice_clients, self.queues, self.manual_stop, bot=self.bot):
             logging.info(f"Reproducción detenida vía botón por {interaction.user}")
             await interaction.response.send_message("⏹️ **Reproducción detenida y queue limpiada!**", ephemeral=True)
-            await self.update_embed_after_response(interaction)
         else:
             await interaction.response.send_message("🚫 **No estoy conectado a un canal de voz.**", ephemeral=True)
