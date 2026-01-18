@@ -34,14 +34,14 @@ class MusicControls(discord.ui.View):
         """Verificar que el usuario esté en el mismo canal de voz que el bot"""
         if not interaction.user.voice:
             await interaction.response.send_message(
-                "Debes estar en un canal de voz para usar estos botones!",
+                "🚫 **Debes estar en un canal de voz para usar estos botones!**",
                 ephemeral=True
             )
             return False
 
         if interaction.user.voice.channel != self.ctx.guild.voice_client.channel:
             await interaction.response.send_message(
-                "Debes estar en el mismo canal de voz que el bot!",
+                "🚫 **Debes estar en el mismo canal de voz que el bot!**",
                 ephemeral=True
             )
             return False
@@ -103,7 +103,7 @@ class MusicControls(discord.ui.View):
                 not (self.voice_clients[guild_id].is_playing() or
                      self.voice_clients[guild_id].is_paused())):
             return discord.Embed(
-                title="No hay canción",
+                title="🚫 No hay canción",
                 description="No hay ninguna canción reproduciéndose ahora mismo.",
                 color=discord.Color.red()
             )
@@ -122,7 +122,7 @@ class MusicControls(discord.ui.View):
         progress_bar = create_progress_bar(elapsed_time, data['duration'])
 
         embed = discord.Embed(
-            title="Sonando Ahora",
+            title="🎵 Sonando Ahora",
             description=f"**[{title}]({url})**",
             color=discord.Color.green()
         )
@@ -136,14 +136,14 @@ class MusicControls(discord.ui.View):
             next_song = self.queues[guild_id][0][1]
             queue_count = len(self.queues[guild_id])
             embed.add_field(
-                name="Siguiente",
+                name="⏭️ Siguiente",
                 value=f"{next_song}\n*+{queue_count - 1} más en la cola*" if queue_count > 1 else next_song,
                 inline=False
             )
 
         if self.loop_status.get(guild_id, False):
             embed.set_footer(
-                text=f"Loop activado | Pedido por {self.ctx.author.display_name}",
+                text=f"🔁 Loop activado | Pedido por {self.ctx.author.display_name}",
                 icon_url=self.ctx.author.avatar
             )
         else:
@@ -172,7 +172,7 @@ class MusicControls(discord.ui.View):
         vc = self.voice_clients.get(guild_id)
 
         if not vc or not vc.is_connected():
-            await interaction.response.send_message("No estoy conectado a un canal de voz.", ephemeral=True)
+            await interaction.response.send_message("🚫 **No estoy conectado a un canal de voz.**", ephemeral=True)
             return
 
         if vc.is_playing():
@@ -182,7 +182,7 @@ class MusicControls(discord.ui.View):
             await resume_playback(guild_id, self.song_data, self.voice_clients)
             logging.info(f"Reproducción reanudada vía botón por {interaction.user}")
         else:
-            await interaction.response.send_message("No hay nada reproduciéndose.", ephemeral=True)
+            await interaction.response.send_message("🚫 **No hay nada reproduciéndose.**", ephemeral=True)
             return
 
         await self.update_embed(interaction)
@@ -193,9 +193,9 @@ class MusicControls(discord.ui.View):
 
         if await skip_song(guild_id, self.voice_clients):
             logging.info(f"Canción saltada vía botón por {interaction.user}")
-            await interaction.response.send_message("Canción saltada!", ephemeral=True)
+            await interaction.response.send_message("⏭️ **Canción saltada!**", ephemeral=True)
         else:
-            await interaction.response.send_message("No hay ninguna canción para saltar.", ephemeral=True)
+            await interaction.response.send_message("🚫 **No hay ninguna canción para saltar.**", ephemeral=True)
 
     @discord.ui.button(label="Loop: OFF", emoji="🔁", style=discord.ButtonStyle.secondary, custom_id="loop")
     async def loop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -205,10 +205,10 @@ class MusicControls(discord.ui.View):
 
         if is_looping:
             logging.info(f"Loop activado vía botón por {interaction.user}")
-            await interaction.response.send_message("Loop activado!", ephemeral=True)
+            await interaction.response.send_message("🔁 **Loop activado!**", ephemeral=True)
         else:
             logging.info(f"Loop desactivado vía botón por {interaction.user}")
-            await interaction.response.send_message("Loop desactivado!", ephemeral=True)
+            await interaction.response.send_message("🔁 **Loop desactivado!**", ephemeral=True)
 
         await self.update_embed_after_response(interaction)
 
@@ -219,10 +219,10 @@ class MusicControls(discord.ui.View):
         if await shuffle_queue(guild_id, self.queues):
             queue_len = len(self.queues[guild_id])
             logging.info(f"Queue mezclada vía botón por {interaction.user}")
-            await interaction.response.send_message(f"Queue mezclada! ({queue_len} canciones)", ephemeral=True)
+            await interaction.response.send_message(f"🔀 **Queue mezclada!** ({queue_len} canciones)", ephemeral=True)
             await self.update_embed_after_response(interaction)
         else:
-            await interaction.response.send_message("La queue necesita al menos 2 canciones para mezclar.", ephemeral=True)
+            await interaction.response.send_message("🚫 **La queue necesita al menos 2 canciones para mezclar.**", ephemeral=True)
 
     @discord.ui.button(label="Stop", emoji="⏹️", style=discord.ButtonStyle.danger, custom_id="stop")
     async def stop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -230,7 +230,7 @@ class MusicControls(discord.ui.View):
 
         if await stop_playback(guild_id, self.voice_clients, self.queues, self.manual_stop):
             logging.info(f"Reproducción detenida vía botón por {interaction.user}")
-            await interaction.response.send_message("Reproducción detenida y queue limpiada!", ephemeral=True)
+            await interaction.response.send_message("⏹️ **Reproducción detenida y queue limpiada!**", ephemeral=True)
             await self.update_embed_after_response(interaction)
         else:
-            await interaction.response.send_message("No estoy conectado a un canal de voz.", ephemeral=True)
+            await interaction.response.send_message("🚫 **No estoy conectado a un canal de voz.**", ephemeral=True)
