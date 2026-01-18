@@ -7,7 +7,6 @@ import discord
 from discord.ext import commands
 import asyncio
 import time
-import random
 import logging
 
 from core.formatters import format_duration, parse_time_string
@@ -39,6 +38,7 @@ from core.spotify_handler import (
 )
 from views.queue_paginator import QueuePaginator
 from views.music_controls import MusicControls, create_now_playing_embed
+from core.presence import update_presence
 
 
 class MusicCommands(commands.Cog):
@@ -83,25 +83,6 @@ class MusicCommands(commands.Cog):
             except Exception as e:
                 logging.debug(f"No se pudo deshabilitar controles anteriores: {e}")
             del self.active_controls_view[guild_id]
-
-    async def update_presence(self, listening: bool, song_title: str = ""):
-        """Actualiza la presencia del bot"""
-        if not listening:
-            mensajes = [
-                "Nada 🦗", 
-                "Silencio total 🌃"
-            ]
-        else:
-            mensajes = [
-                f"{song_title}"
-            ]
-
-        mensaje = random.choice(mensajes)
-        activity = discord.Activity(
-            type=discord.ActivityType.listening,
-            name=mensaje
-        )
-        await self.bot.change_presence(activity=activity)
 
     async def ensure_voice(self, ctx) -> bool:
         """Verifica que el usuario esté en un canal de voz y conecta el bot si es necesario"""
@@ -183,7 +164,7 @@ class MusicCommands(commands.Cog):
                 'pause_start_time': 0
             }
 
-            await self.update_presence(True, actual_title)
+            await update_presence(self.bot,True, actual_title)
 
             logging.info("Creating FFmpegOpusAudio player...")
             player = discord.FFmpegOpusAudio(stream_url, **self.ffmpeg_options)
@@ -209,7 +190,8 @@ class MusicCommands(commands.Cog):
 
             view = MusicControls(
                 ctx, None, self.voice_clients, self.loop_status,
-                self.queues, self.song_data, self.manual_stop
+                self.queues, self.song_data, self.manual_stop,
+                bot=self.bot
             )
 
             message = await ctx.send(embed=embed, view=view)
@@ -255,7 +237,7 @@ class MusicCommands(commands.Cog):
             await self.play_song(ctx, next_link, next_title)
         else:
             logging.info("La queue está vacía, no hay nada que reproducir.")
-            await self.update_presence(False)
+            await update_presence(self.bot,False)
             await ctx.send("🚫 **La queue está vacía.**")
 
     async def alone_timeout(self, guild_id: int, channel):
@@ -283,7 +265,7 @@ class MusicCommands(commands.Cog):
                     await self.voice_clients[guild_id].disconnect()
                     del self.voice_clients[guild_id]
 
-                    await self.update_presence(False)
+                    await update_presence(self.bot,False)
 
                     if guild_id in self.alone_timeout_tasks:
                         del self.alone_timeout_tasks[guild_id]
@@ -298,7 +280,7 @@ class MusicCommands(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         """Actualizar presencia cuando el bot está listo"""
-        await self.update_presence(False)
+        await update_presence(self.bot,False)
         logging.info(f'{self.bot.user} is now jamming')
 
     @commands.Cog.listener()
@@ -548,7 +530,8 @@ class MusicCommands(commands.Cog):
 
         view = MusicControls(
             ctx, None, self.voice_clients, self.loop_status,
-            self.queues, self.song_data, self.manual_stop
+            self.queues, self.song_data, self.manual_stop,
+            bot=self.bot
         )
 
         message = await ctx.send(embed=embed, view=view)
@@ -640,8 +623,7 @@ class MusicCommands(commands.Cog):
             return
 
         guild_id = ctx.guild.id
-        if await stop_playback(guild_id, self.voice_clients, self.queues, self.manual_stop):
-            await self.update_presence(False)
+        if await stop_playback(guild_id, self.voice_clients, self.queues, self.manual_stop, bot=self.bot):
             await ctx.send("⏹️ **Reproducción detenida!**")
         else:
             await ctx.send("🚫 **No hay ninguna canción sonando!**")
@@ -745,7 +727,7 @@ class MusicCommands(commands.Cog):
             del self.voice_clients[guild_id]
             if guild_id in self.queues:
                 self.queues[guild_id].clear()
-            await self.update_presence(False)
+            await update_presence(self.bot,False)
             await ctx.send("👋 **Me he desconectado del canal de voz y la queue ha sido borrada.**")
         else:
             await ctx.send("🚫 **No estoy conectado a ningún canal de voz.**")

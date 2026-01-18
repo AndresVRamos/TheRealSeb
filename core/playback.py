@@ -5,6 +5,8 @@ import time
 import random
 import logging
 
+from core.presence import update_presence
+
 
 async def pause_playback(guild_id, song_data, voice_clients):
     """
@@ -103,9 +105,12 @@ async def shuffle_queue(guild_id, queues):
     return True
 
 
-async def stop_playback(guild_id, voice_clients, queues, manual_stop):
+async def stop_playback(guild_id, voice_clients, queues, manual_stop, bot=None):
     """
     Detiene la reproducción y limpia la queue
+
+    Args:
+        bot: Instancia del bot para actualizar la presencia
 
     Returns:
         bool: True si se detuvo correctamente, False si no se pudo detener
@@ -125,6 +130,9 @@ async def stop_playback(guild_id, voice_clients, queues, manual_stop):
 
     if guild_id in queues:
         queues[guild_id].clear()
+
+    if bot:
+        await update_presence(bot, False)
 
     logging.info(f"Reproducción detenida y queue limpiada en guild {guild_id}")
     return True

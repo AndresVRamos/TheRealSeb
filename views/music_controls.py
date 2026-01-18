@@ -90,7 +90,7 @@ def create_now_playing_embed(song_data, queues, loop_status, guild_id, author):
 class MusicControls(discord.ui.View):
     """Vista con botones de control de reproducción"""
 
-    def __init__(self, ctx, message, voice_clients, loop_status, queues, song_data, manual_stop):
+    def __init__(self, ctx, message, voice_clients, loop_status, queues, song_data, manual_stop, bot=None):
         super().__init__(timeout=180)
         self.ctx = ctx
         self.message = message
@@ -100,6 +100,7 @@ class MusicControls(discord.ui.View):
         self.song_data = song_data
         self.manual_stop = manual_stop
         self.guild_id = ctx.guild.id
+        self.bot = bot
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         """Verificar que el usuario esté en el mismo canal de voz que el bot"""
@@ -258,7 +259,7 @@ class MusicControls(discord.ui.View):
     async def stop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         guild_id = self.guild_id
 
-        if await stop_playback(guild_id, self.voice_clients, self.queues, self.manual_stop):
+        if await stop_playback(guild_id, self.voice_clients, self.queues, self.manual_stop, bot=self.bot):
             logging.info(f"Reproducción detenida vía botón por {interaction.user}")
             await interaction.response.send_message("⏹️ **Reproducción detenida y queue limpiada!**", ephemeral=True)
             await self.update_embed_after_response(interaction)
