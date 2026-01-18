@@ -62,6 +62,10 @@ def create_now_playing_embed(song_data, queues, loop_status, guild_id, author):
         inline=False
     )
 
+    thumbnail = data.get('thumbnail')
+    if thumbnail:
+        embed.set_thumbnail(url=thumbnail)
+
     # Mostrar siguiente canción si hay queue
     if guild_id in queues and queues[guild_id]:
         next_song = queues[guild_id][0][1]

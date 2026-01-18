@@ -97,7 +97,8 @@ async def extract_video_info(ytdl, url: str):
         'duration': data.get('duration', 0),
         'stream_url': data['url'],
         'format_id': data.get('format_id', 'unknown'),
-        'ext': data.get('ext', 'unknown')
+        'ext': data.get('ext', 'unknown'),
+        'thumbnail': data.get('thumbnail')
     }
 
 

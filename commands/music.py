@@ -161,7 +161,8 @@ class MusicCommands(commands.Cog):
                 'duration': video_info['duration'],
                 'start_time': time.time(),
                 'paused_time': 0,
-                'pause_start_time': 0
+                'pause_start_time': 0,
+                'thumbnail': video_info.get('thumbnail')
             }
 
             await update_presence(self.bot,True, actual_title)
