@@ -47,6 +47,7 @@ python maniac.py
 | Comando | Descripción |
 |---------|-------------|
 | `.play <enlace>` | Reproduce una canción o playlist |
+| `.search <búsqueda>` | Busca una canción y muestra 5 opciones para escoger |
 | `.add <enlace>` | Añade a la queue |
 | `.playnext <enlace>` | Añade como siguiente canción |
 | `.queue` | Muestra la queue actual |
