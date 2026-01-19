@@ -29,13 +29,10 @@ def is_relevant_match(search_title: str, search_artist: str, found_title: str, f
     found_title = found_title.lower().strip()
     found_artist = found_artist.lower().strip() if found_artist else ""
 
-    # Verificar similitud del título
     title_sim = similarity(search_title, found_title)
 
-    # También verificar si el título buscado está contenido en el encontrado o viceversa
     title_contained = search_title in found_title or found_title in search_title
 
-    # Si tenemos artista, verificar también
     if search_artist and found_artist:
         artist_sim = similarity(search_artist, found_artist)
         artist_contained = search_artist in found_artist or found_artist in search_artist

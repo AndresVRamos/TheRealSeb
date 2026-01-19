@@ -3,7 +3,7 @@
 ## 🚀 Mejoras de Rendimiento
 
 1. **Cache de metadatos de YouTube**
-   - Actualmente extraes metadata cada vez. Podrías cachear títulos y duraciones de canciones recientemente reproducidas
+   - Actualmente se extrae metadata cada vez. Se podría cachear títulos y duraciones de canciones recientemente reproducidas
    - Reducir llamadas a yt-dlp guardando resultados por X tiempo
 
 2. **Precarga de la siguiente canción**
@@ -11,10 +11,10 @@
    - Reducir tiempo de espera entre canciones
 
 3. **Optimización de FFmpeg**
-   - Los options de reconexión actuales están bien, pero podrías añadir `-probesize 32` y `-analyzeduration 0` para inicios más rápidos
+   - Los options de reconexión actuales están bien, pero se podría añadir `-probesize 32` y `-analyzeduration 0` para inicios más rápidos
 
 4. **Async Spotify Playlist Processing**
-   - Ya usas asyncio.gather pero podrías añadir un límite de concurrencia para evitar rate limits
+   - Ya se usa asyncio.gather pero se podría añadir un límite de concurrencia para evitar rate limits
 
 ---
 
@@ -31,7 +31,7 @@
 
 3. ~~**Controles con botones (Discord UI)**~~ ✅
    - ~~Añadir botones de ⏸️ ▶️ ⏭️ 🔀 🔁 en el mensaje de nowplaying~~
-   - ~~Similar a tu paginador actual~~
+   - ~~Similar al paginador actual~~
 
 4. **Mejoras en el comando queue**
    - Mostrar duración total estimada de la queue
