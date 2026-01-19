@@ -39,6 +39,7 @@ from core.spotify_handler import (
 from views.queue_paginator import QueuePaginator
 from views.music_controls import MusicControls, create_now_playing_embed
 from core.presence import update_presence
+from core.lyrics_handler import get_lyrics, parse_synced_lyrics, get_current_lyric_line, format_lyrics_with_highlight
 
 
 class MusicCommands(commands.Cog):
@@ -614,6 +615,70 @@ class MusicCommands(commands.Cog):
         # Guardar la vista activa
         self.active_controls_view[guild_id] = view
         view.start_update_loop()
+
+    @commands.command(name="lyrics", help="Muestra las letras de la canción actual o de una búsqueda.")
+    async def lyrics(self, ctx, *, query: str = None):
+        guild_id = ctx.guild.id
+        import os
+
+        # Determinar qué canción buscar
+        if query:
+            song_title = query
+        elif guild_id in self.song_data:
+            song_title = self.song_data[guild_id]['title']
+        else:
+            await ctx.send("🚫 **No hay ninguna canción sonando y no especificaste qué buscar.**\n"
+                          "Uso: `.lyrics` (canción actual) o `.lyrics <nombre de canción>`")
+            return
+
+        # Mensaje de búsqueda
+        search_msg = await ctx.send(f"🔍 **Buscando letras para:** *{song_title}*...")
+
+        try:
+            genius_api_key = os.getenv('GENIUS_API_KEY')
+            lyrics_data = await get_lyrics(song_title, genius_api_key)
+
+            if not lyrics_data:
+                await search_msg.edit(content=f"🚫 **No se encontraron letras para:** *{song_title}*")
+                return
+
+            # Obtener las letras (preferir plain sobre synced para el embed)
+            lyrics_text = lyrics_data.get('plain') or lyrics_data.get('synced', '')
+
+            # Limpiar letras sincronizadas si es necesario (remover timestamps)
+            if lyrics_data.get('synced') and not lyrics_data.get('plain'):
+                import re
+                lyrics_text = re.sub(r'\[\d{2}:\d{2}\.\d{2}\]\s*', '', lyrics_text)
+
+            max_length = 4000
+            truncated = False
+            if len(lyrics_text) > max_length:
+                lyrics_text = lyrics_text[:max_length]
+                last_newline = lyrics_text.rfind('\n')
+                if last_newline > max_length - 500:
+                    lyrics_text = lyrics_text[:last_newline]
+                lyrics_text += "\n\n*[Letras truncadas...]*"
+                truncated = True
+
+            embed = discord.Embed(
+                title=f"📝 {lyrics_data.get('title', song_title)}",
+                description=lyrics_text,
+                color=discord.Color.purple()
+            )
+
+            if lyrics_data.get('artist'):
+                embed.set_author(name=lyrics_data['artist'])
+
+            footer_text = f"Fuente: {lyrics_data.get('source', 'Desconocida')}"
+            if lyrics_data.get('synced'):
+                footer_text += " | Letras sincronizadas disponibles"
+            embed.set_footer(text=footer_text)
+
+            await search_msg.edit(content=None, embed=embed)
+
+        except Exception as e:
+            logging.error(f"Error obteniendo letras: {e}")
+            await search_msg.edit(content=f"⚠️ **Error al buscar letras:** {e}")
 
     @commands.command(name="skip", help="Salta la canción actual.")
     async def skip(self, ctx):
