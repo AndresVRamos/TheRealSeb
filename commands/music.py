@@ -85,6 +85,30 @@ class MusicCommands(commands.Cog):
                 logging.debug(f"No se pudo deshabilitar controles anteriores: {e}")
             del self.active_controls_view[guild_id]
 
+    async def update_final_embed(self, guild_id: int):
+        """Actualiza el embed con el estado final antes de cambiar de canción"""
+        if guild_id not in self.active_controls_view:
+            return
+
+        view = self.active_controls_view[guild_id]
+        if not view.message:
+            return
+
+        try:
+            view.cancel_update_loop()
+
+            embed = create_now_playing_embed(
+                self.song_data, self.queues, self.loop_status,
+                guild_id
+            )
+
+            for item in view.children:
+                item.disabled = True
+
+            await view.message.edit(embed=embed, view=view)
+        except Exception as e:
+            logging.debug(f"No se pudo actualizar embed final: {e}")
+
     async def ensure_voice(self, ctx) -> bool:
         """Verifica que el usuario esté en un canal de voz y conecta el bot si es necesario"""
         if not ctx.author.voice or not ctx.author.voice.channel:
@@ -117,6 +141,14 @@ class MusicCommands(commands.Cog):
                 logging.warning(f"Voice client not connected for guild {guild_id}")
                 return
 
+            # Actualizar el embed con el estado final antes de cambiar de canción
+            try:
+                update_coro = self.update_final_embed(guild_id)
+                update_fut = asyncio.run_coroutine_threadsafe(update_coro, self.bot.loop)
+                update_fut.result(timeout=5)  # Esperar máximo 5 segundos
+            except Exception as e:
+                logging.debug(f"Error actualizando embed final: {e}")
+
             if self.manual_stop.get(guild_id, False):
                 logging.info(f"Manual stop detected for guild {guild_id}")
                 self.manual_stop[guild_id] = False
@@ -129,6 +161,8 @@ class MusicCommands(commands.Cog):
                 fut.result()
             except Exception as e:
                 logging.error(f"Error running play_next: {e}")
+
+            
 
         return _after_play
 
