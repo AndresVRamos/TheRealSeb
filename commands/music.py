@@ -864,6 +864,22 @@ class MusicCommands(commands.Cog):
         self.queues[guild_id].insert(hasta - 1, song)
         await ctx.send(f"🔀 **Movida** *{song[1]}* **de la posición {desde} a la {hasta}.**")
 
+    @commands.command(name="remove", help="Remueve una canción de la queue por su posición.")
+    async def remove(self, ctx, posicion: int):
+        guild_id = ctx.guild.id
+
+        if guild_id not in self.queues or not self.queues[guild_id]:
+            await ctx.send("🚫 **La queue está vacía!**")
+            return
+
+        queue_len = len(self.queues[guild_id])
+        if not (1 <= posicion <= queue_len):
+            await ctx.send(f"🚫 **La posición debe estar dentro del rango de la queue (1 a {queue_len}).**")
+            return
+
+        song = self.queues[guild_id].pop(posicion - 1)
+        await ctx.send(f"🗑️ **Removida** *{song[1]}* **de la posición {posicion}.**")
+
     @commands.command(name="leave", help="Desconecta el bot del canal de voz y borra la queue.")
     async def leave(self, ctx):
         guild_id = ctx.guild.id
