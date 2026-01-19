@@ -513,6 +513,10 @@ class MusicCommands(commands.Cog):
         if guild_id not in self.queues:
             self.queues[guild_id] = []
 
+        is_playing = (guild_id in self.voice_clients and
+                      (self.voice_clients[guild_id].is_playing() or
+                       self.voice_clients[guild_id].is_paused()))
+
         try:
             if is_spotify_url(url):
                 if is_spotify_playlist(url):
@@ -520,9 +524,18 @@ class MusicCommands(commands.Cog):
                     if not songs:
                         await ctx.send("🚫 **La playlist de Spotify está vacía.**")
                         return
-                    for song in reversed(songs):
-                        self.queues[guild_id].insert(0, (song[0], song[1], ctx.author))
-                    await ctx.send(f"➕ **Añadida la playlist a la posición siguiente:** {len(songs)} canciones")
+
+                    if not is_playing:
+                        # Reproducir la primera canción directamente
+                        first_song_url, first_title = songs[0]
+                        songs_with_requester = [(s[0], s[1], ctx.author) for s in songs[1:]]
+                        self.queues[guild_id].extend(songs_with_requester)
+                        await self.play_song(ctx, first_song_url, first_title, ctx.author)
+                        await ctx.send(f"➕ **Añadida la playlist a la queue:** {len(songs)} canciones")
+                    else:
+                        for song in reversed(songs):
+                            self.queues[guild_id].insert(0, (song[0], song[1], ctx.author))
+                        await ctx.send(f"➕ **Añadida la playlist a la posición siguiente:** {len(songs)} canciones")
                     return
                 else:
                     yt_link, title = await get_youtube_url_from_spotify_track(self.sp, url)
@@ -536,9 +549,18 @@ class MusicCommands(commands.Cog):
                 if not songs:
                     await ctx.send("🚫 **La playlist de YouTube está vacía.**")
                     return
-                for song in reversed(songs):
-                    self.queues[guild_id].insert(0, (song[0], song[1], ctx.author))
-                await ctx.send(f"➕ **Añadida la playlist a la posición siguiente:** {len(songs)} canciones")
+
+                if not is_playing:
+                    # Reproducir la primera canción directamente
+                    first_song_url, first_title = songs[0]
+                    songs_with_requester = [(s[0], s[1], ctx.author) for s in songs[1:]]
+                    self.queues[guild_id].extend(songs_with_requester)
+                    await ctx.send(f"➕ **Añadida la playlist a la queue:** {len(songs)} canciones")
+                    await self.play_song(ctx, first_song_url, first_title, ctx.author)
+                else:
+                    for song in reversed(songs):
+                        self.queues[guild_id].insert(0, (song[0], song[1], ctx.author))
+                    await ctx.send(f"➕ **Añadida la playlist a la posición siguiente:** {len(songs)} canciones")
             else:
                 if not is_youtube_url(url):
                     url = await search_youtube(url)
@@ -548,8 +570,12 @@ class MusicCommands(commands.Cog):
 
                 video_info = await extract_video_info(self.ytdl, url)
                 title = video_info['title']
-                self.queues[guild_id].insert(0, (url, title, ctx.author))
-                await ctx.send(f"➕ ***{title}*** **ha sido añadida como la siguiente canción!**")
+
+                if not is_playing:
+                    await self.play_song(ctx, url, title, ctx.author)
+                else:
+                    self.queues[guild_id].insert(0, (url, title, ctx.author))
+                    await ctx.send(f"➕ ***{title}*** **ha sido añadida como la siguiente canción!**")
 
         except Exception as e:
             logging.error(f"Error en playnext: {e}")
