@@ -18,8 +18,8 @@ Bot de música para Discord con soporte para YouTube y Spotify, controles avanza
 
 1. Clona el repositorio:
 ```bash
-git clone https://github.com/TU-USUARIO/music-maniac-bot.git
-cd music-maniac-bot
+git clone https://github.com/AndresVRamos/TheRealSeb
+cd therealseb
 ```
 
 2. Instala las dependencias:
