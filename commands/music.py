@@ -201,7 +201,8 @@ class MusicCommands(commands.Cog):
                 'paused_time': 0,
                 'pause_start_time': 0,
                 'thumbnail': video_info.get('thumbnail'),
-                'requester': actual_requester
+                'requester': actual_requester,
+                'artist': video_info.get('artist')
             }
 
             await update_presence(self.bot,True, actual_title)
@@ -621,22 +622,27 @@ class MusicCommands(commands.Cog):
         guild_id = ctx.guild.id
         import os
 
-        # Determinar qué canción buscar
+        # Determinar qué canción buscar y obtener artista si está disponible
+        song_artist = None
         if query:
             song_title = query
         elif guild_id in self.song_data:
             song_title = self.song_data[guild_id]['title']
+            song_artist = self.song_data[guild_id].get('artist')
         else:
             await ctx.send("🚫 **No hay ninguna canción sonando y no especificaste qué buscar.**\n"
                           "Uso: `.lyrics` (canción actual) o `.lyrics <nombre de canción>`")
             return
 
         # Mensaje de búsqueda
-        search_msg = await ctx.send(f"🔍 **Buscando letras para:** *{song_title}*...")
+        search_info = f"*{song_title}*"
+        if song_artist:
+            search_info = f"*{song_title}* de **{song_artist}**"
+        search_msg = await ctx.send(f"🔍 **Buscando letras para:** {search_info}...")
 
         try:
             genius_api_key = os.getenv('GENIUS_API_KEY')
-            lyrics_data = await get_lyrics(song_title, genius_api_key)
+            lyrics_data = await get_lyrics(song_title, genius_api_key, song_artist)
 
             if not lyrics_data:
                 await search_msg.edit(content=f"🚫 **No se encontraron letras para:** *{song_title}*")

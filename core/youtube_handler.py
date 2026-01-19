@@ -91,6 +91,9 @@ async def extract_video_info(ytdl, url: str):
         logging.error(f"No URL found in data. Available keys: {list(data.keys())}")
         return None
 
+    # Intentar obtener el artista de varios campos posibles
+    artist = data.get('artist') or data.get('creator') or data.get('uploader') or data.get('channel')
+
     return {
         'title': data.get('title', 'Unknown Title'),
         'url': url,
@@ -98,7 +101,8 @@ async def extract_video_info(ytdl, url: str):
         'stream_url': data['url'],
         'format_id': data.get('format_id', 'unknown'),
         'ext': data.get('ext', 'unknown'),
-        'thumbnail': data.get('thumbnail')
+        'thumbnail': data.get('thumbnail'),
+        'artist': artist
     }
 
 

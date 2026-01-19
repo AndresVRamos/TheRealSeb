@@ -9,6 +9,49 @@ import re
 import logging
 import os
 from typing import Optional, Tuple
+from difflib import SequenceMatcher
+
+
+def similarity(a: str, b: str) -> float:
+    """Calcula la similitud entre dos strings (0.0 a 1.0)"""
+    a = a.lower().strip()
+    b = b.lower().strip()
+    return SequenceMatcher(None, a, b).ratio()
+
+
+def is_relevant_match(search_title: str, search_artist: str, found_title: str, found_artist: str, threshold: float = 0.4) -> bool:
+    """
+    Verifica si el resultado encontrado es relevante para la búsqueda.
+    Usa similitud de strings para comparar.
+    """
+    search_title = search_title.lower().strip()
+    search_artist = search_artist.lower().strip() if search_artist else ""
+    found_title = found_title.lower().strip()
+    found_artist = found_artist.lower().strip() if found_artist else ""
+
+    # Verificar similitud del título
+    title_sim = similarity(search_title, found_title)
+
+    # También verificar si el título buscado está contenido en el encontrado o viceversa
+    title_contained = search_title in found_title or found_title in search_title
+
+    # Si tenemos artista, verificar también
+    if search_artist and found_artist:
+        artist_sim = similarity(search_artist, found_artist)
+        artist_contained = search_artist in found_artist or found_artist in search_artist
+
+        # Aceptar si el título es muy similar O está contenido, Y el artista coincide razonablemente
+        if (title_sim >= threshold or title_contained) and (artist_sim >= 0.3 or artist_contained):
+            return True
+
+        # También aceptar si ambos tienen buena similitud combinada
+        if (title_sim + artist_sim) / 2 >= threshold:
+            return True
+
+        return False
+
+    # Sin artista, ser más estricto con el título
+    return title_sim >= threshold or title_contained
 
 
 def clean_song_title(title: str) -> Tuple[str, str]:
@@ -59,6 +102,7 @@ async def fetch_lyrics_lrclib(title: str, artist: str = "") -> Optional[dict]:
     """
     Obtiene letras de LRCLib (con timestamps si están disponibles).
     Retorna dict con 'plain' y/o 'synced' lyrics, o None si no encuentra.
+    Valida la relevancia del resultado.
     """
     try:
         base_url = "https://lrclib.net/api/search"
@@ -77,22 +121,30 @@ async def fetch_lyrics_lrclib(title: str, artist: str = "") -> Optional[dict]:
                 if not data:
                     return None
 
-                # Tomar el primer resultado
-                result = data[0]
+                # Buscar el primer resultado relevante
+                for result in data:
+                    found_artist = result.get('artistName', '')
+                    found_title = result.get('trackName', '')
 
-                lyrics_data = {
-                    'source': 'LRCLib',
-                    'artist': result.get('artistName', artist),
-                    'title': result.get('trackName', title),
-                    'plain': result.get('plainLyrics'),
-                    'synced': result.get('syncedLyrics'),
-                    'duration': result.get('duration')
-                }
+                    if not is_relevant_match(title, artist, found_title, found_artist):
+                        logging.debug(f"LRCLib: Descartando '{found_artist} - {found_title}'")
+                        continue
 
-                # Solo retornar si hay letras
-                if lyrics_data['plain'] or lyrics_data['synced']:
-                    return lyrics_data
+                    lyrics_data = {
+                        'source': 'LRCLib',
+                        'artist': found_artist or artist,
+                        'title': found_title or title,
+                        'plain': result.get('plainLyrics'),
+                        'synced': result.get('syncedLyrics'),
+                        'duration': result.get('duration')
+                    }
 
+                    # Solo retornar si hay letras
+                    if lyrics_data['plain'] or lyrics_data['synced']:
+                        logging.info(f"LRCLib: Match válido - '{found_artist} - {found_title}'")
+                        return lyrics_data
+
+                logging.warning(f"LRCLib: Ningún resultado relevante para '{artist} - {title}'")
                 return None
 
     except asyncio.TimeoutError:
@@ -107,6 +159,7 @@ async def fetch_lyrics_genius(title: str, artist: str = "", api_key: str = None)
     """
     Obtiene letras de Genius usando la librería lyricsgenius.
     Requiere GENIUS_API_KEY en variables de entorno.
+    Valida que el resultado sea relevante para evitar letras incorrectas.
     """
     if not api_key:
         api_key = os.getenv('GENIUS_API_KEY')
@@ -125,23 +178,37 @@ async def fetch_lyrics_genius(title: str, artist: str = "", api_key: str = None)
             genius = lyricsgenius.Genius(api_key, verbose=False, remove_section_headers=True)
             genius.timeout = 10
 
-            # Buscar canción
-            query = f"{artist} {title}".strip() if artist else title
+            # Buscar canción con artista si lo tenemos
             song = genius.search_song(title, artist if artist else None)
 
             if song:
                 return {
-                    'source': 'Genius',
-                    'artist': song.artist,
-                    'title': song.title,
-                    'plain': song.lyrics,
-                    'synced': None,
+                    'found_artist': song.artist,
+                    'found_title': song.title,
+                    'lyrics': song.lyrics,
                     'url': song.url
                 }
             return None
 
         result = await loop.run_in_executor(None, search_genius)
-        return result
+
+        if result:
+            # Validar que el resultado sea relevante
+            if is_relevant_match(title, artist, result['found_title'], result['found_artist']):
+                logging.info(f"Genius: Match válido - buscado: '{artist} - {title}' -> encontrado: '{result['found_artist']} - {result['found_title']}'")
+                return {
+                    'source': 'Genius',
+                    'artist': result['found_artist'],
+                    'title': result['found_title'],
+                    'plain': result['lyrics'],
+                    'synced': None,
+                    'url': result['url']
+                }
+            else:
+                logging.warning(f"Genius: Match rechazado - buscado: '{artist} - {title}' -> encontrado: '{result['found_artist']} - {result['found_title']}'")
+                return None
+
+        return None
 
     except ImportError:
         logging.error("lyricsgenius no está instalado")
@@ -189,10 +256,15 @@ async def fetch_lyrics_ovh(title: str, artist: str = "") -> Optional[dict]:
         return None
 
 
-async def get_lyrics(song_title: str, genius_api_key: str = None) -> Optional[dict]:
+async def get_lyrics(song_title: str, genius_api_key: str = None, provided_artist: str = None) -> Optional[dict]:
     """
     Función principal que intenta obtener letras usando múltiples servicios.
     Orden: Genius -> LRCLib -> lyrics.ovh
+
+    Args:
+        song_title: Título de la canción (puede incluir artista en formato "Artista - Título")
+        genius_api_key: API key de Genius (opcional)
+        provided_artist: Artista proporcionado directamente (ej: desde yt-dlp)
 
     Retorna dict con:
     - source: nombre del servicio
@@ -201,12 +273,15 @@ async def get_lyrics(song_title: str, genius_api_key: str = None) -> Optional[di
     - plain: letras en texto plano
     - synced: letras sincronizadas (solo LRCLib, puede ser None)
     """
-    # Limpiar y extraer artista/título
-    artist, title = clean_song_title(song_title)
+    # Limpiar y extraer artista/título del string
+    extracted_artist, title = clean_song_title(song_title)
 
     if not title:
-        title = artist
-        artist = ""
+        title = extracted_artist
+        extracted_artist = ""
+
+    # Usar el artista proporcionado si existe, sino usar el extraído del título
+    artist = provided_artist if provided_artist else extracted_artist
 
     logging.info(f"Buscando letras para: '{artist}' - '{title}'")
 
