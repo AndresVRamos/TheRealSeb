@@ -73,6 +73,37 @@ async def search_youtube(query: str) -> str:
             return YOUTUBE_BASE_URL + 'watch?v=' + search_results[0]
 
 
+async def search_youtube_multiple(query: str, max_results: int = 5) -> list:
+    """
+    Busca videos en YouTube y retorna múltiples resultados únicos
+
+    Args:
+        query: Término de búsqueda
+        max_results: Número máximo de resultados a retornar
+
+    Returns:
+        Lista de URLs de videos de YouTube (sin duplicados)
+    """
+    query_string = urllib.parse.urlencode({'search_query': query})
+    async with aiohttp.ClientSession() as session:
+        async with session.get(YOUTUBE_RESULTS_URL + query_string) as response:
+            content = await response.text()
+            search_results = re.findall(r'/watch\?v=(.{11})', content)
+            if not search_results:
+                logging.error("No se encontraron resultados en YouTube para la búsqueda.")
+                return []
+            # Eliminar duplicados manteniendo el orden
+            seen = set()
+            unique_results = []
+            for video_id in search_results:
+                if video_id not in seen:
+                    seen.add(video_id)
+                    unique_results.append(YOUTUBE_BASE_URL + 'watch?v=' + video_id)
+                    if len(unique_results) >= max_results:
+                        break
+            return unique_results
+
+
 async def extract_video_info(ytdl, url: str):
     """
     Extrae información de un video de YouTube

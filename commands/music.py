@@ -21,6 +21,7 @@ from core.playback import (
 from core.youtube_handler import (
     create_ytdl,
     search_youtube,
+    search_youtube_multiple,
     extract_video_info,
     fetch_playlist_songs,
     clean_video_url,
@@ -38,6 +39,7 @@ from core.spotify_handler import (
 )
 from views.queue_paginator import QueuePaginator
 from views.music_controls import MusicControls, create_now_playing_embed
+from views.search_results import SearchResultsView, create_search_embed
 from core.presence import update_presence
 from core.lyrics_handler import get_lyrics, parse_synced_lyrics, get_current_lyric_line, format_lyrics_with_highlight
 
@@ -895,6 +897,61 @@ class MusicCommands(commands.Cog):
             await ctx.send("👋 **Me he desconectado del canal de voz y la queue ha sido borrada.**")
         else:
             await ctx.send("🚫 **No estoy conectado a ningún canal de voz.**")
+
+    @commands.command(name="search", help="Busca una canción y muestra 5 resultados para elegir.")
+    async def search(self, ctx, *, query: str):
+        if not await self.ensure_voice(ctx):
+            return
+
+        guild_id = ctx.guild.id
+        if guild_id not in self.queues:
+            self.queues[guild_id] = []
+
+        search_msg = await ctx.send(f"🔍 **Buscando:** *{query}*...")
+
+        try:
+            urls = await search_youtube_multiple(query, max_results=5)
+
+            if not urls:
+                await search_msg.edit(content="⚠️ **No se encontraron resultados en YouTube.**")
+                return
+
+            # Obtener títulos de los videos
+            results = []
+            for url in urls:
+                try:
+                    video_info = await extract_video_info(self.ytdl, url)
+                    if video_info:
+                        results.append((url, video_info['title']))
+                except Exception as e:
+                    logging.debug(f"Error obteniendo info de {url}: {e}")
+                    continue
+
+            if not results:
+                await search_msg.edit(content="⚠️ **No se pudieron obtener los resultados.**")
+                return
+
+            # Callback cuando se selecciona un resultado
+            async def on_select(ctx, url, title):
+                is_playing = (guild_id in self.voice_clients and
+                              (self.voice_clients[guild_id].is_playing() or
+                               self.voice_clients[guild_id].is_paused()))
+
+                if is_playing:
+                    self.queues[guild_id].append((url, title, ctx.author))
+                    await ctx.send(f"➕ **Añadida a la queue:** *{title}*")
+                else:
+                    await self.play_song(ctx, url, title, ctx.author)
+
+            embed = create_search_embed(query, results)
+            view = SearchResultsView(ctx, results, on_select)
+
+            await search_msg.edit(content=None, embed=embed, view=view)
+            view.message = search_msg
+
+        except Exception as e:
+            logging.error(f"Error en búsqueda: {e}")
+            await search_msg.edit(content=f"⚠️ **Error en la búsqueda:** {e}")
 
     @commands.command(name="help", help="Muestra una lista de comandos disponibles.")
     async def show_commands(self, ctx):

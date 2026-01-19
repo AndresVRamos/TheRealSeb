@@ -37,9 +37,9 @@
    - Mostrar duración total estimada de la queue
    - Tiempo estimado hasta que toque cada canción
 
-5. **Comando de búsqueda mejorado**
-   - `.search <término>` que muestre 5 resultados con botones para elegir
-   - Más preciso que la búsqueda automática actual
+5. ~~**Comando de búsqueda mejorado**~~ ✅
+   - ~~`.search <término>` que muestre 5 resultados con botones para elegir~~
+   - ~~Más preciso que la búsqueda automática actual~~
 
 6. **Letra de canciones**
    - Integración con API de Genius/Musixmatch
