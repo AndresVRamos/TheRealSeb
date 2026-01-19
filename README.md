@@ -1,6 +1,6 @@
-# 🎵 Music Maniac - Discord Music Bot
+# 🎵 TheRealSeb - Discord Music Bot
 
-Bot de música para Discord con soporte para YouTube y Spotify, controles avanzados y GUI integrada.
+Bot de música para Discord con soporte para YouTube y Spotify, controles avanzados y GUI para logging integrada..
 
 ## ✨ Características
 
