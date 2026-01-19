@@ -19,7 +19,7 @@ class QueuePaginator(discord.ui.View):
     def create_embed(self):
         page_content = self.pages[self.current_page]
         start_index = self.current_page * self.items_per_page
-        queue_list = [f"**{i + 1 + start_index}.** *{title}*" for i, (url, title) in enumerate(page_content)]
+        queue_list = [f"**{i + 1 + start_index}.** *{song[1]}*" for i, song in enumerate(page_content)]
         description = "\n".join(queue_list)
 
         embed = discord.Embed(

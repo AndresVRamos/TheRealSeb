@@ -17,7 +17,7 @@ from core.playback import (
 )
 
 
-def create_now_playing_embed(song_data, queues, loop_status, guild_id, author):
+def create_now_playing_embed(song_data, queues, loop_status, guild_id, author=None):
     """
     Crea el embed de 'Sonando Ahora' con la información de la canción actual.
 
@@ -26,7 +26,7 @@ def create_now_playing_embed(song_data, queues, loop_status, guild_id, author):
         queues: Diccionario con colas por guild
         loop_status: Diccionario con estado de loop por guild
         guild_id: ID del servidor
-        author: Usuario que pidió la canción (para el footer)
+        author: Usuario fallback
 
     Returns:
         discord.Embed con la información de la canción
@@ -39,6 +39,8 @@ def create_now_playing_embed(song_data, queues, loop_status, guild_id, author):
         )
 
     data = song_data[guild_id]
+
+    requester = data.get('requester', author)
 
     # Calcular tiempo transcurrido
     elapsed_time = (time.time() - data['start_time']) - data['paused_time']
@@ -78,16 +80,17 @@ def create_now_playing_embed(song_data, queues, loop_status, guild_id, author):
         )
 
     # Footer con estado de loop
-    if loop_status.get(guild_id, False):
-        embed.set_footer(
-            text=f"🔁 Loop activado | Pedido por {author.display_name}",
-            icon_url=author.avatar
-        )
-    else:
-        embed.set_footer(
-            text=f"Pedido por {author.display_name}",
-            icon_url=author.avatar
-        )
+    if requester:
+        if loop_status.get(guild_id, False):
+            embed.set_footer(
+                text=f"🔁 Loop activado | Pedido por {requester.display_name}",
+                icon_url=requester.avatar
+            )
+        else:
+            embed.set_footer(
+                text=f"Pedido por {requester.display_name}",
+                icon_url=requester.avatar
+            )
 
     return embed
 
