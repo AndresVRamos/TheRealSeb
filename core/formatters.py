@@ -3,6 +3,8 @@ Funciones helper para formateo de tiempo y barras de progreso
 """
 import re
 
+from core.config import PROGRESS_BAR_LENGTH, PROGRESS_BAR_FILLED, PROGRESS_BAR_EMPTY
+
 
 def format_duration(seconds):
     """Convierte segundos a formato HH:MM:SS o MM:SS"""
@@ -66,9 +68,9 @@ def parse_time_string(time_str):
         return None
 
 
-def create_progress_bar(current, total, bar_length=15):
+def create_progress_bar(current, total, bar_length=PROGRESS_BAR_LENGTH):
     """Crea una barra de progreso visual"""
     if total == 0:
-        return "─" * bar_length
+        return PROGRESS_BAR_EMPTY * bar_length
     progress = int((current / total) * bar_length)
-    return "■" * progress + "─" * (bar_length - progress)
+    return PROGRESS_BAR_FILLED * progress + PROGRESS_BAR_EMPTY * (bar_length - progress)

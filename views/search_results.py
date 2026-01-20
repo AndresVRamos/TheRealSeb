@@ -4,11 +4,13 @@ Vista de resultados de búsqueda con botones para elegir
 import discord
 import logging
 
+from core.config import SEARCH_VIEW_TIMEOUT
+
 
 class SearchResultsView(discord.ui.View):
     """Vista con botones para seleccionar un resultado de búsqueda"""
 
-    def __init__(self, ctx, results: list, on_select_callback, timeout=60):
+    def __init__(self, ctx, results: list, on_select_callback, timeout=SEARCH_VIEW_TIMEOUT):
         """
         Args:
             ctx: Contexto del comando

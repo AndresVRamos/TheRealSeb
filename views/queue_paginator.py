@@ -2,6 +2,7 @@
 Vista de paginación para la queue de canciones
 """
 import discord
+from core.config import QUEUE_VIEW_TIMEOUT
 from core.formatters import format_duration
 
 
@@ -9,7 +10,7 @@ class QueuePaginator(discord.ui.View):
     """Paginador con botones para navegar la queue"""
 
     def __init__(self, ctx, pages, total_songs, items_per_page=10, current_song_remaining=0, total_duration=0):
-        super().__init__(timeout=180)
+        super().__init__(timeout=QUEUE_VIEW_TIMEOUT)
         self.ctx = ctx
         self.pages = pages
         self.total_songs = total_songs

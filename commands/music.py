@@ -1,14 +1,19 @@
 """
 Cog de comandos de música
 """
-ALONE_TIMEOUT_SECONDS = 60  # Tiempo en segundos antes de desconectarse si el bot está solo
-
 import discord
 from discord.ext import commands
 import asyncio
 import time
 import logging
 
+from core.config import (
+    ALONE_TIMEOUT_SECONDS,
+    VOICE_CONNECT_TIMEOUT,
+    QUEUE_ITEMS_PER_PAGE,
+    PLAYBACK_VOLUME,
+    SEARCH_MAX_RESULTS
+)
 from core.formatters import format_duration, parse_time_string
 from core.playback import (
     pause_playback,
@@ -71,7 +76,7 @@ class MusicCommands(commands.Cog):
         # Opciones de FFmpeg
         self.ffmpeg_options = {
             'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-            'options': '-vn -filter:a "volume=0.375"'
+            'options': f'-vn -filter:a "volume={PLAYBACK_VOLUME}"'
         }
 
     async def disable_previous_controls(self, guild_id: int):
@@ -131,7 +136,7 @@ class MusicCommands(commands.Cog):
         if guild_id not in self.voice_clients or not self.voice_clients[guild_id].is_connected():
             try:
                 logging.info(f"Intentando conectarse al canal de voz: {ctx.author.voice.channel}")
-                voice_client = await ctx.author.voice.channel.connect(timeout=60.0)
+                voice_client = await ctx.author.voice.channel.connect(timeout=VOICE_CONNECT_TIMEOUT)
                 self.voice_clients[guild_id] = voice_client
                 logging.info(f"Conectado a: {ctx.author.voice.channel}")
             except Exception as e:
@@ -514,7 +519,7 @@ class MusicCommands(commands.Cog):
             await ctx.send("🚫 **La queue está vacía!**")
             return
 
-        items_per_page = 25
+        items_per_page = QUEUE_ITEMS_PER_PAGE
         total_songs = len(self.queues[guild_id])
         pages = [self.queues[guild_id][i:i + items_per_page]
                  for i in range(0, len(self.queues[guild_id]), items_per_page)]
@@ -871,7 +876,7 @@ class MusicCommands(commands.Cog):
 
             seek_ffmpeg_options = {
                 'before_options': f'-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -ss {seek_seconds}',
-                'options': '-vn -filter:a "volume=0.375"'
+                'options': f'-vn -filter:a "volume={PLAYBACK_VOLUME}"'
             }
 
             player = discord.FFmpegOpusAudio(stream_url, **seek_ffmpeg_options)
@@ -950,7 +955,7 @@ class MusicCommands(commands.Cog):
         search_msg = await ctx.send(f"🔍 **Buscando:** *{query}*...")
 
         try:
-            urls = await search_youtube_multiple(query, max_results=5)
+            urls = await search_youtube_multiple(query, max_results=SEARCH_MAX_RESULTS)
 
             if not urls:
                 await search_msg.edit(content="⚠️ **No se encontraron resultados en YouTube.**")

@@ -6,6 +6,7 @@ import time
 import logging
 import asyncio
 
+from core.config import MUSIC_CONTROLS_TIMEOUT, NOWPLAYING_UPDATE_INTERVAL
 from core.formatters import format_duration, create_progress_bar
 from core.playback import (
     pause_playback,
@@ -103,7 +104,7 @@ class MusicControls(discord.ui.View):
     """Vista con botones de control de reproducción"""
 
     def __init__(self, ctx, message, voice_clients, loop_status, queues, song_data, manual_stop, bot=None):
-        super().__init__(timeout=180)
+        super().__init__(timeout=MUSIC_CONTROLS_TIMEOUT)
         self.ctx = ctx
         self.message = message
         self.voice_clients = voice_clients
@@ -158,7 +159,7 @@ class MusicControls(discord.ui.View):
         """Loop interno que actualiza el embed periódicamente"""
         try:
             while True:
-                await asyncio.sleep(15)
+                await asyncio.sleep(NOWPLAYING_UPDATE_INTERVAL)
 
                 # Verificar si todavía está reproduciendo
                 if (self.guild_id not in self.voice_clients or
