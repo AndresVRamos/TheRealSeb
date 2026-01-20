@@ -100,9 +100,18 @@ class MusicCommands(commands.Cog):
         try:
             view.cancel_update_loop()
 
+            song_finished = False
+            if guild_id in self.song_data:
+                data = self.song_data[guild_id]
+                elapsed_time = (time.time() - data['start_time']) - data['paused_time']
+                if data['pause_start_time'] > 0:
+                    elapsed_time -= (time.time() - data['pause_start_time'])
+                if data['duration'] - elapsed_time < 2:
+                    song_finished = True
+
             embed = create_now_playing_embed(
                 self.song_data, self.queues, self.loop_status,
-                guild_id
+                guild_id, song_finished=song_finished
             )
 
             for item in view.children:

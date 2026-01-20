@@ -17,7 +17,7 @@ from core.playback import (
 )
 
 
-def create_now_playing_embed(song_data, queues, loop_status, guild_id, author=None):
+def create_now_playing_embed(song_data, queues, loop_status, guild_id, author=None, song_finished=False):
     """
     Crea el embed de 'Sonando Ahora' con la información de la canción actual.
 
@@ -27,6 +27,7 @@ def create_now_playing_embed(song_data, queues, loop_status, guild_id, author=No
         loop_status: Diccionario con estado de loop por guild
         guild_id: ID del servidor
         author: Usuario fallback
+        song_finished: Si True, muestra el tiempo como igual a la duración total
 
     Returns:
         discord.Embed con la información de la canción
@@ -43,10 +44,13 @@ def create_now_playing_embed(song_data, queues, loop_status, guild_id, author=No
     requester = data.get('requester', author)
 
     # Calcular tiempo transcurrido
-    elapsed_time = (time.time() - data['start_time']) - data['paused_time']
-    if data['pause_start_time'] > 0:
-        elapsed_time -= (time.time() - data['pause_start_time'])
-    elapsed_time = max(0, min(elapsed_time, data['duration']))
+    if song_finished:
+        elapsed_time = data['duration']
+    else:
+        elapsed_time = (time.time() - data['start_time']) - data['paused_time']
+        if data['pause_start_time'] > 0:
+            elapsed_time -= (time.time() - data['pause_start_time'])
+        elapsed_time = max(0, min(elapsed_time, data['duration']))
 
     title = data['title']
     url = data['url']
