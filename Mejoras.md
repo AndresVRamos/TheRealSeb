@@ -33,9 +33,9 @@
    - ~~Añadir botones de ⏸️ ▶️ ⏭️ 🔀 🔁 en el mensaje de nowplaying~~
    - ~~Similar al paginador actual~~
 
-4. **Mejoras en el comando queue**
-   - Mostrar duración total estimada de la queue
-   - Tiempo estimado hasta que toque cada canción
+4. ~~**Mejoras en el comando queue**~~ ✅
+   - ~~Mostrar duración total estimada de la queue~~
+   - ~~Tiempo estimado hasta que toque cada canción~~
 
 5. ~~**Comando de búsqueda mejorado**~~ ✅
    - ~~`.search <término>` que muestre 5 resultados con botones para elegir~~

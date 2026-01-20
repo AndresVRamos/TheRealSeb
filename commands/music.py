@@ -285,7 +285,10 @@ class MusicCommands(commands.Cog):
             logging.info(f"Playing next song: {url}")
             await self.play_song(ctx, url)
         elif self.queues.get(guild_id):
-            next_link, next_title, next_requester = self.queues[guild_id].pop(0)
+            song = self.queues[guild_id].pop(0)
+            next_link = song[0]
+            next_title = song[1]
+            next_requester = song[2]
             logging.info(f"Playing next song from queue: {next_title}")
             await self.play_song(ctx, next_link, next_title, next_requester)
         else:
@@ -402,8 +405,8 @@ class MusicCommands(commands.Cog):
                     if not songs:
                         await ctx.send("🚫 **La playlist de Spotify está vacía o no se pudo procesar.**")
                         return
-                    first_song_url, first_title = songs[0]
-                    songs_with_requester = [(s[0], s[1], ctx.author) for s in songs[1:]]
+                    first_song_url, first_title, _ = songs[0]
+                    songs_with_requester = [(song[0], song[1], ctx.author, song[2]) for song in songs[1:]] #(url, titulo, requester, duracion)
                     self.queues[guild_id].extend(songs_with_requester)
                     await self.play_song(ctx, first_song_url, first_title, ctx.author)
                     await ctx.send(f"➕ **Añadida la playlist a la queue:** {len(songs)} canciones")
@@ -421,8 +424,9 @@ class MusicCommands(commands.Cog):
                 if not songs:
                     await ctx.send("🚫 **La playlist de YouTube está vacía.**")
                     return
-                first_song_url, first_title = songs[0]
-                songs_with_requester = [(s[0], s[1], ctx.author) for s in songs[1:]]
+                first_song_url, first_title, _ = songs[0]
+                # Añadir con duración de la playlist
+                songs_with_requester = [(song[0], song[1], ctx.author, song[2]) for song in songs[1:]]
                 self.queues[guild_id].extend(songs_with_requester)
                 await ctx.send(f"➕ **Añadida la playlist a la queue:** {len(songs)} canciones")
                 await self.play_song(ctx, first_song_url, first_title, ctx.author)
@@ -458,7 +462,8 @@ class MusicCommands(commands.Cog):
                     if not songs:
                         await ctx.send("🚫 **La playlist de Spotify está vacía o no se pudo procesar.**")
                         return
-                    songs_with_requester = [(s[0], s[1], ctx.author) for s in songs]
+                    # Añadir con duración de Spotify
+                    songs_with_requester = [(song[0], song[1], ctx.author, song[2]) for song in songs]
                     self.queues[guild_id].extend(songs_with_requester)
                     await ctx.send(f"➕ **Añadida la playlist a la queue:** {len(songs)} canciones")
                     return
@@ -468,7 +473,10 @@ class MusicCommands(commands.Cog):
                     if not yt_link:
                         await ctx.send("⚠️ **Error al obtener el enlace de YouTube desde Spotify.**")
                         return
-                    self.queues[guild_id].append((yt_link, title, ctx.author))
+                    # Obtener duración del video de YouTube
+                    video_info = await extract_video_info(self.ytdl, yt_link)
+                    duration = video_info.get('duration', 0) if video_info else 0
+                    self.queues[guild_id].append((yt_link, title, ctx.author, duration))
                     await ctx.send(f"➕ **Añadida a la queue:** *{title}*")
                     return
 
@@ -477,7 +485,8 @@ class MusicCommands(commands.Cog):
                 if not songs:
                     await ctx.send("🚫 **La playlist de YouTube está vacía.**")
                     return
-                songs_with_requester = [(s[0], s[1], ctx.author) for s in songs]
+                # Añadir con duración de la playlist
+                songs_with_requester = [(song[0], song[1], ctx.author, song[2]) for song in songs]
                 self.queues[guild_id].extend(songs_with_requester)
                 await ctx.send(f"➕ **Añadida la playlist a la queue:** {len(songs)} canciones")
             else:
@@ -489,7 +498,8 @@ class MusicCommands(commands.Cog):
 
                 video_info = await extract_video_info(self.ytdl, url)
                 title = video_info['title']
-                self.queues[guild_id].append((url, title, ctx.author))
+                duration = video_info.get('duration', 0)
+                self.queues[guild_id].append((url, title, ctx.author, duration))
                 await ctx.send(f"➕ **Añadida a la queue:** *{title}*")
 
         except Exception as e:
@@ -509,7 +519,27 @@ class MusicCommands(commands.Cog):
         pages = [self.queues[guild_id][i:i + items_per_page]
                  for i in range(0, len(self.queues[guild_id]), items_per_page)]
 
-        paginator = QueuePaginator(ctx, pages, total_songs, items_per_page)
+        # Calcular tiempo restante de la canción actual
+        current_song_remaining = 0
+        if guild_id in self.song_data and guild_id in self.voice_clients:
+            if self.voice_clients[guild_id].is_playing() or self.voice_clients[guild_id].is_paused():
+                data = self.song_data[guild_id]
+                elapsed_time = (time.time() - data['start_time']) - data['paused_time']
+                if data['pause_start_time'] > 0:
+                    elapsed_time -= (time.time() - data['pause_start_time'])
+                current_song_remaining = max(0, data['duration'] - elapsed_time)
+
+        # Calcular duración total de la queue (solo canciones con duración conocida)
+        total_duration = sum(
+            song[3] if len(song) > 3 and song[3] else 0
+            for song in self.queues[guild_id]
+        )
+
+        paginator = QueuePaginator(
+            ctx, pages, total_songs, items_per_page,
+            current_song_remaining=current_song_remaining,
+            total_duration=total_duration
+        )
         paginator.children[0].disabled = True
         if len(pages) <= 1:
             paginator.children[1].disabled = True
@@ -540,14 +570,14 @@ class MusicCommands(commands.Cog):
 
                     if not is_playing:
                         # Reproducir la primera canción directamente
-                        first_song_url, first_title = songs[0]
-                        songs_with_requester = [(s[0], s[1], ctx.author) for s in songs[1:]]
+                        first_song_url, first_title, _ = songs[0]
+                        songs_with_requester = [(song[0], song[1], ctx.author, song[2]) for song in songs[1:]]
                         self.queues[guild_id].extend(songs_with_requester)
                         await self.play_song(ctx, first_song_url, first_title, ctx.author)
                         await ctx.send(f"➕ **Añadida la playlist a la queue:** {len(songs)} canciones")
                     else:
                         for song in reversed(songs):
-                            self.queues[guild_id].insert(0, (song[0], song[1], ctx.author))
+                            self.queues[guild_id].insert(0, (song[0], song[1], ctx.author, song[2]))
                         await ctx.send(f"➕ **Añadida la playlist a la posición siguiente:** {len(songs)} canciones")
                     return
                 else:
@@ -565,14 +595,14 @@ class MusicCommands(commands.Cog):
 
                 if not is_playing:
                     # Reproducir la primera canción directamente
-                    first_song_url, first_title = songs[0]
-                    songs_with_requester = [(s[0], s[1], ctx.author) for s in songs[1:]]
+                    first_song_url, first_title, _ = songs[0]
+                    songs_with_requester = [(song[0], song[1], ctx.author, song[2]) for song in songs[1:]]
                     self.queues[guild_id].extend(songs_with_requester)
                     await ctx.send(f"➕ **Añadida la playlist a la queue:** {len(songs)} canciones")
                     await self.play_song(ctx, first_song_url, first_title, ctx.author)
                 else:
                     for song in reversed(songs):
-                        self.queues[guild_id].insert(0, (song[0], song[1], ctx.author))
+                        self.queues[guild_id].insert(0, (song[0], song[1], ctx.author, song[2]))
                     await ctx.send(f"➕ **Añadida la playlist a la posición siguiente:** {len(songs)} canciones")
             else:
                 if not is_youtube_url(url):
@@ -583,11 +613,12 @@ class MusicCommands(commands.Cog):
 
                 video_info = await extract_video_info(self.ytdl, url)
                 title = video_info['title']
+                duration = video_info.get('duration', 0)
 
                 if not is_playing:
                     await self.play_song(ctx, url, title, ctx.author)
                 else:
-                    self.queues[guild_id].insert(0, (url, title, ctx.author))
+                    self.queues[guild_id].insert(0, (url, title, ctx.author, duration))
                     await ctx.send(f"➕ ***{title}*** **ha sido añadida como la siguiente canción!**")
 
         except Exception as e:
@@ -925,13 +956,13 @@ class MusicCommands(commands.Cog):
                 await search_msg.edit(content="⚠️ **No se encontraron resultados en YouTube.**")
                 return
 
-            # Obtener títulos de los videos
+            # Obtener títulos y duraciones de los videos
             results = []
             for url in urls:
                 try:
                     video_info = await extract_video_info(self.ytdl, url)
                     if video_info:
-                        results.append((url, video_info['title']))
+                        results.append((url, video_info['title'], video_info.get('duration', 0)))
                 except Exception as e:
                     logging.debug(f"Error obteniendo info de {url}: {e}")
                     continue
@@ -941,13 +972,13 @@ class MusicCommands(commands.Cog):
                 return
 
             # Callback cuando se selecciona un resultado
-            async def on_select(ctx, url, title):
+            async def on_select(ctx, url, title, duration=0):
                 is_playing = (guild_id in self.voice_clients and
                               (self.voice_clients[guild_id].is_playing() or
                                self.voice_clients[guild_id].is_paused()))
 
                 if is_playing:
-                    self.queues[guild_id].append((url, title, ctx.author))
+                    self.queues[guild_id].append((url, title, ctx.author, duration))
                     await ctx.send(f"➕ **Añadida a la queue:** *{title}*")
                 else:
                     await self.play_song(ctx, url, title, ctx.author)

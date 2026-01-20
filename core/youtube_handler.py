@@ -146,12 +146,19 @@ async def fetch_playlist_songs(ytdl, url: str):
         url: URL de la playlist
 
     Returns:
-        Lista de tuplas (url, title) de las canciones
+        Lista de tuplas (url, title, duration) de las canciones
     """
     try:
         data = ytdl.extract_info(url, download=False)
-        songs = [(YOUTUBE_BASE_URL + 'watch?v=' + entry['id'], entry['title'])
-                 for entry in data['entries']]
+        songs = [
+            (
+                YOUTUBE_BASE_URL + 'watch?v=' + entry['id'],
+                entry['title'],
+                entry.get('duration', 0) or 0
+            )
+            for entry in data['entries']
+            if entry is not None
+        ]
         return songs
     except Exception as e:
         logging.error(f"Error fetching playlist songs: {e}")

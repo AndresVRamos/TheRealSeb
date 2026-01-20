@@ -2,12 +2,13 @@
 Vista de paginación para la queue de canciones
 """
 import discord
+from core.formatters import format_duration
 
 
 class QueuePaginator(discord.ui.View):
     """Paginador con botones para navegar la queue"""
 
-    def __init__(self, ctx, pages, total_songs, items_per_page=10):
+    def __init__(self, ctx, pages, total_songs, items_per_page=10, current_song_remaining=0, total_duration=0):
         super().__init__(timeout=180)
         self.ctx = ctx
         self.pages = pages
@@ -15,11 +16,52 @@ class QueuePaginator(discord.ui.View):
         self.current_page = 0
         self.total_pages = len(pages)
         self.items_per_page = items_per_page
+        self.current_song_remaining = current_song_remaining  # Tiempo restante de canción actual
+        self.total_duration = total_duration  # Duración total de la queue
+
+    def _format_song_duration(self, duration):
+        """Formatea la duración de una canción"""
+        if duration is None or duration == 0:
+            return "?"
+        return format_duration(duration)
+
+    def _calculate_time_until(self, song_index):
+        """Calcula el tiempo estimado hasta que toque una canción"""
+        # Empezar con el tiempo restante de la canción actual
+        time_until = self.current_song_remaining
+
+        # Sumar duraciones de canciones anteriores en la queue
+        song_count = 0
+        for page in self.pages:
+            for song in page:
+                if song_count >= song_index:
+                    return time_until
+                duration = song[3] if len(song) > 3 else 0
+                if duration and duration > 0:
+                    time_until += duration
+                song_count += 1
+
+        return time_until
 
     def create_embed(self):
         page_content = self.pages[self.current_page]
         start_index = self.current_page * self.items_per_page
-        queue_list = [f"**{i + 1 + start_index}.** *{song[1]}*" for i, song in enumerate(page_content)]
+
+        queue_list = []
+        for i, song in enumerate(page_content):
+            song_index = i + start_index
+            title = song[1]
+            duration = song[3] if len(song) > 3 else 0
+            duration_str = self._format_song_duration(duration)
+
+            # Calcular tiempo estimado hasta esta canción
+            time_until = self._calculate_time_until(song_index)
+            if time_until > 0:
+                time_until_str = format_duration(time_until)
+                queue_list.append(f"**{song_index + 1}.** *{title}* `[{duration_str}]` — en ~{time_until_str}")
+            else:
+                queue_list.append(f"**{song_index + 1}.** *{title}* `[{duration_str}]`")
+
         description = "\n".join(queue_list)
 
         embed = discord.Embed(
@@ -27,7 +69,13 @@ class QueuePaginator(discord.ui.View):
             description=description,
             color=discord.Color.blurple()
         )
-        embed.set_footer(text=f"Total de canciones: {self.total_songs}")
+
+        # Footer con duración total
+        if self.total_duration > 0:
+            total_duration_str = format_duration(self.total_duration)
+            embed.set_footer(text=f"Total: {self.total_songs} canciones • Duración total: {total_duration_str}")
+        else:
+            embed.set_footer(text=f"Total: {self.total_songs} canciones")
 
         return embed
 

@@ -12,7 +12,7 @@ class SearchResultsView(discord.ui.View):
         """
         Args:
             ctx: Contexto del comando
-            results: Lista de tuplas (url, title)
+            results: Lista de tuplas (url, title, duration) o (url, title)
             on_select_callback: Función async a llamar cuando se selecciona un resultado
             timeout: Tiempo en segundos antes de que expire la vista
         """
@@ -24,7 +24,7 @@ class SearchResultsView(discord.ui.View):
         self.selected = False
 
         # Crear botones dinámicamente para cada resultado
-        for i, (url, title) in enumerate(results):
+        for i, result in enumerate(results):
             button = discord.ui.Button(
                 label=str(i + 1),
                 style=discord.ButtonStyle.primary,
@@ -53,7 +53,10 @@ class SearchResultsView(discord.ui.View):
                 return
 
             self.selected = True
-            url, title = self.results[index]
+            result = self.results[index]
+            url = result[0]
+            title = result[1]
+            duration = result[2] if len(result) > 2 else 0
 
             # Deshabilitar todos los botones
             for item in self.children:
@@ -65,8 +68,8 @@ class SearchResultsView(discord.ui.View):
                 view=self
             )
 
-            # Llamar al callback con la selección
-            await self.on_select_callback(self.ctx, url, title)
+            # Llamar al callback con la selección (incluyendo duración)
+            await self.on_select_callback(self.ctx, url, title, duration)
 
         return callback
 
@@ -115,7 +118,7 @@ def create_search_embed(query: str, results: list) -> discord.Embed:
 
     Args:
         query: Término de búsqueda original
-        results: Lista de tuplas (url, title)
+        results: Lista de tuplas (url, title, duration) o (url, title)
 
     Returns:
         discord.Embed con los resultados formateados
@@ -126,7 +129,9 @@ def create_search_embed(query: str, results: list) -> discord.Embed:
         color=discord.Color.blue()
     )
 
-    for i, (url, title) in enumerate(results):
+    for i, result in enumerate(results):
+        url = result[0]
+        title = result[1]
         # Truncar títulos muy largos
         display_title = title if len(title) <= 60 else title[:57] + "..."
         embed.add_field(
