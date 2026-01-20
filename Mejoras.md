@@ -41,9 +41,9 @@
    - ~~`.search <término>` que muestre 5 resultados con botones para elegir~~
    - ~~Más preciso que la búsqueda automática actual~~
 
-6. **Letra de canciones**
-   - Integración con API de Genius/Musixmatch
-   - `.lyrics` para mostrar letra de canción actual
+~~6. **Letra de canciones**~~
+   ~~- Integración con API de Genius/Musixmatch~~
+   ~~- `.lyrics` para mostrar letra de canción actual~~
 
 7. **Ecualizador/Filtros de audio**
    - Bass boost, nightcore, 8D audio usando filtros FFmpeg
