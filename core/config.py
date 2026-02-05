@@ -36,3 +36,29 @@ PROGRESS_BAR_EMPTY = "─"
 # === BÚSQUEDA ===
 # Cantidad de resultados en el comando .search
 SEARCH_MAX_RESULTS = 5
+
+# === ESTADÍSTICAS ===
+# Ruta de la base de datos SQLite para estadísticas
+STATS_DATABASE_PATH = "data/stats.db"
+
+# Cantidad de canciones en el comando .topsongs
+TOP_SONGS_LIMIT = 10
+
+# Cantidad de usuarios en el comando .topusers
+TOP_USERS_LIMIT = 5
+
+# Cantidad de canciones top del usuario en .stats y .mystats
+USER_TOP_SONGS_LIMIT = 5
+
+# Cantidad de canciones en el historial (.history)
+HISTORY_LIMIT = 10
+
+# === WRAPPED ===
+# Año mínimo para estadísticas Wrapped
+WRAPPED_MIN_YEAR = 2020
+
+# Cantidad de canciones en el top de Wrapped
+WRAPPED_TOP_TRACKS_LIMIT = 5
+
+# Cantidad de artistas en el top de Wrapped
+WRAPPED_TOP_ARTISTS_LIMIT = 5

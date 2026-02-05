@@ -12,7 +12,11 @@ from core.config import (
     VOICE_CONNECT_TIMEOUT,
     QUEUE_ITEMS_PER_PAGE,
     PLAYBACK_VOLUME,
-    SEARCH_MAX_RESULTS
+    SEARCH_MAX_RESULTS,
+    TOP_SONGS_LIMIT,
+    TOP_USERS_LIMIT,
+    USER_TOP_SONGS_LIMIT,
+    HISTORY_LIMIT
 )
 from core.formatters import format_duration, parse_time_string
 from core.playback import (
@@ -47,6 +51,15 @@ from views.music_controls import MusicControls, create_now_playing_embed
 from views.search_results import SearchResultsView, create_search_embed
 from core.presence import update_presence
 from core.lyrics_handler import get_lyrics, parse_synced_lyrics, get_current_lyric_line, format_lyrics_with_highlight
+from core.stats_handler import (
+    init_database,
+    record_play,
+    get_user_stats,
+    get_user_top_songs,
+    get_server_top_users,
+    get_server_top_songs,
+    get_user_history
+)
 
 
 class MusicCommands(commands.Cog):
@@ -72,6 +85,9 @@ class MusicCommands(commands.Cog):
         # Clientes externos
         self.ytdl = create_ytdl()
         self.sp = create_spotify_client(spotify_client_id, spotify_client_secret)
+
+        # Inicializar base de datos de estadísticas
+        init_database()
 
         # Opciones de FFmpeg
         self.ffmpeg_options = {
@@ -157,6 +173,38 @@ class MusicCommands(commands.Cog):
             if guild_id not in self.voice_clients or not self.voice_clients[guild_id].is_connected():
                 logging.warning(f"Voice client not connected for guild {guild_id}")
                 return
+
+            # Registrar reproducción para todos los oyentes en el canal
+            # Solo si la canción terminó normalmente (no por seek/skip/stop)
+            is_seek = self.seek_in_progress.get(guild_id, False)
+            is_skipto = self.skipto_in_progress.get(guild_id, False)
+            is_manual_stop = self.manual_stop.get(guild_id, False)
+
+            if not error and not is_seek and not is_skipto and not is_manual_stop:
+                try:
+                    if guild_id in self.song_data:
+                        song_data = self.song_data[guild_id]
+                        voice_channel = self.voice_clients[guild_id].channel
+                        listeners = [(m.id, m.display_name) for m in voice_channel.members if not m.bot]
+                        requester = song_data.get('requester')
+                        guild = self.bot.get_guild(guild_id)
+
+                        record_play(
+                            guild_id=guild_id,
+                            requester_id=requester.id if requester else 0,
+                            requester_name=requester.display_name if requester else "Desconocido",
+                            song_title=song_data['title'],
+                            artist=song_data.get('artist'),
+                            url=song_data.get('url'),
+                            duration=song_data.get('duration', 0),
+                            listeners=listeners,
+                            guild_name=guild.name if guild else None,
+                            thumbnail_url=song_data.get('thumbnail'),
+                            guild_icon_url=str(guild.icon.url) if guild and guild.icon else None
+                        )
+                        logging.info(f"Recorded play for {len(listeners)} listeners in guild {guild_id}")
+                except Exception as e:
+                    logging.error(f"Error recording play stats: {e}")
 
             # Actualizar el embed con el estado final antes de cambiar de canción
             try:
@@ -998,30 +1046,236 @@ class MusicCommands(commands.Cog):
             logging.error(f"Error en búsqueda: {e}")
             await search_msg.edit(content=f"⚠️ **Error en la búsqueda:** {e}")
 
+    # === STATS ===
+
+    @commands.command(name="mystats", help="Muestra tus estadísticas de reproducciones en este servidor.")
+    async def mystats(self, ctx):
+        guild_id = ctx.guild.id
+        user_id = ctx.author.id
+
+        stats = get_user_stats(user_id, guild_id)
+
+        if stats['total_listened'] == 0:
+            await ctx.send("🚫 **No tienes reproducciones registradas en este servidor.**")
+            return
+
+        # Obtener top canciones del usuario
+        top_songs = get_user_top_songs(user_id, guild_id, limit=USER_TOP_SONGS_LIMIT)
+
+        embed = discord.Embed(
+            title=f"📊 Estadísticas de {ctx.author.display_name}",
+            color=discord.Color.gold()
+        )
+        embed.set_thumbnail(url=ctx.author.display_avatar.url)
+
+        embed.add_field(
+            name="🎵 Canciones pedidas",
+            value=str(stats['total_requested']),
+            inline=True
+        )
+        embed.add_field(
+            name="🎧 Canciones escuchadas",
+            value=str(stats['total_listened']),
+            inline=True
+        )
+        embed.add_field(
+            name="⏱️ Tiempo total escuchado",
+            value=format_duration(stats['total_time']),
+            inline=True
+        )
+
+        if stats['first_play']:
+            embed.add_field(
+                name="📅 Primera reproducción",
+                value=stats['first_play'][:10],
+                inline=True
+            )
+
+        if top_songs:
+            top_songs_text = "\n".join([
+                f"**{i+1}.** {song[0]} ({song[2]} reproducciones)"
+                for i, song in enumerate(top_songs)
+            ])
+            embed.add_field(
+                name="🏆 Tus Top 5 canciones pedidas",
+                value=top_songs_text,
+                inline=False
+            )
+
+        embed.set_footer(text=f"Servidor: {ctx.guild.name}")
+        await ctx.send(embed=embed)
+
+    @commands.command(name="stats", help="Muestra las estadísticas de un usuario específico.")
+    async def stats(self, ctx, member: discord.Member = None):
+        if member is None:
+            member = ctx.author
+
+        guild_id = ctx.guild.id
+        user_id = member.id
+
+        stats = get_user_stats(user_id, guild_id)
+
+        if stats['total_listened'] == 0:
+            await ctx.send(f"🚫 **{member.display_name} no tiene reproducciones registradas en este servidor.**")
+            return
+
+        # Obtener top canciones del usuario
+        top_songs = get_user_top_songs(user_id, guild_id, limit=USER_TOP_SONGS_LIMIT)
+
+        embed = discord.Embed(
+            title=f"📊 Estadísticas de {member.display_name}",
+            color=discord.Color.gold()
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+
+        embed.add_field(
+            name="🎵 Canciones pedidas",
+            value=str(stats['total_requested']),
+            inline=True
+        )
+        embed.add_field(
+            name="🎧 Canciones escuchadas",
+            value=str(stats['total_listened']),
+            inline=True
+        )
+        embed.add_field(
+            name="⏱️ Tiempo total escuchado",
+            value=format_duration(stats['total_time']),
+            inline=True
+        )
+
+        if stats['first_play']:
+            embed.add_field(
+                name="📅 Primera reproducción",
+                value=stats['first_play'][:10],
+                inline=True
+            )
+
+        if top_songs:
+            top_songs_text = "\n".join([
+                f"**{i+1}.** {song[0]} ({song[2]} reproducciones)"
+                for i, song in enumerate(top_songs)
+            ])
+            embed.add_field(
+                name="🏆 Top 5 canciones pedidas",
+                value=top_songs_text,
+                inline=False
+            )
+
+        embed.set_footer(text=f"Servidor: {ctx.guild.name}")
+        await ctx.send(embed=embed)
+
+    @commands.command(name="topsongs", help="Muestra las canciones más reproducidas en este servidor.")
+    async def topsongs(self, ctx):
+        guild_id = ctx.guild.id
+
+        top_songs = get_server_top_songs(guild_id, limit=TOP_SONGS_LIMIT)
+
+        if not top_songs:
+            await ctx.send("🚫 **No hay reproducciones registradas en este servidor.**")
+            return
+
+        embed = discord.Embed(
+            title=f"🎵 Top {TOP_SONGS_LIMIT} Canciones - {ctx.guild.name}",
+            color=discord.Color.purple()
+        )
+
+        songs_text = []
+        for i, song in enumerate(top_songs):
+            medal = ""
+            if i == 0:
+                medal = "🥇 "
+            elif i == 1:
+                medal = "🥈 "
+            elif i == 2:
+                medal = "🥉 "
+
+            artist_text = f" - *{song[1]}*" if song[1] else ""
+            songs_text.append(f"{medal}**{i+1}.** {song[0]}{artist_text} ({song[2]} reproducciones)")
+
+        embed.description = "\n".join(songs_text)
+        embed.set_thumbnail(url=ctx.guild.icon.url if ctx.guild.icon else None)
+        await ctx.send(embed=embed)
+
+    @commands.command(name="topusers", help="Muestra los usuarios con más requests en este servidor.")
+    async def topusers(self, ctx):
+        guild_id = ctx.guild.id
+
+        top_users = get_server_top_users(guild_id, limit=TOP_USERS_LIMIT)
+
+        if not top_users:
+            await ctx.send("🚫 **No hay reproducciones registradas en este servidor.**")
+            return
+
+        embed = discord.Embed(
+            title=f"👑 Top {TOP_USERS_LIMIT} Usuarios - {ctx.guild.name}",
+            color=discord.Color.orange()
+        )
+
+        users_text = []
+        for i, user_data in enumerate(top_users):
+            user_id, user_name, play_count, total_time = user_data
+            medal = ""
+            if i == 0:
+                medal = "🥇 "
+            elif i == 1:
+                medal = "🥈 "
+            elif i == 2:
+                medal = "🥉 "
+
+            time_str = format_duration(total_time)
+            users_text.append(f"{medal}**{i+1}.** {user_name} - {play_count} requests ({time_str})")
+
+        embed.description = "\n".join(users_text)
+        embed.set_thumbnail(url=ctx.guild.icon.url if ctx.guild.icon else None)
+        await ctx.send(embed=embed)
+
+    @commands.command(name="history", help="Muestra tu historial de reproducciones recientes.")
+    async def history(self, ctx, member: discord.Member = None):
+        if member is None:
+            member = ctx.author
+
+        guild_id = ctx.guild.id
+        user_id = member.id
+
+        history = get_user_history(user_id, guild_id, limit=HISTORY_LIMIT)
+
+        if not history:
+            if member == ctx.author:
+                await ctx.send("🚫 **No tienes historial de reproducciones en este servidor.**")
+            else:
+                await ctx.send(f"🚫 **{member.display_name} no tiene historial de reproducciones en este servidor.**")
+            return
+
+        embed = discord.Embed(
+            title=f"📜 Historial de {member.display_name}",
+            color=discord.Color.blue()
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+
+        history_text = []
+        for i, (song_title, artist, played_at) in enumerate(history):
+            # Formatear la fecha
+            date_str = played_at[:16].replace("T", " ") if "T" in played_at else played_at[:16]
+            song_info = f"**{i+1}.** {song_title}"
+            if artist:
+                song_info += f" - *{artist}*"
+            song_info += f"\n   └ {date_str}"
+            history_text.append(song_info)
+
+        embed.description = "\n".join(history_text)
+        embed.set_footer(text=f"Últimas {HISTORY_LIMIT} reproducciones en {ctx.guild.name}")
+        await ctx.send(embed=embed)
+
     @commands.command(name="help", help="Muestra una lista de comandos disponibles.")
     async def show_commands(self, ctx):
-        embed = discord.Embed(title="📋 Comandos disponibles", color=discord.Color.blue())
+        from views.help_menu import HelpMenuView
 
-        for command in sorted(self.bot.commands, key=lambda c: c.name):
-            # Construir el nombre con parámetros
-            params = []
-            for param_name, param in command.clean_params.items():
-                if param.default == param.empty:
-                    params.append(f"<{param_name}>")
-                else:
-                    params.append(f"[{param_name}]")
+        view = HelpMenuView(ctx, self.bot)
+        embed = view._create_summary_embed()
 
-            cmd_signature = f".{command.name}"
-            if params:
-                cmd_signature += " " + " ".join(params)
-
-            # Usar la descripción del comando o un texto por defecto
-            description = command.help or "Sin descripción"
-
-            embed.add_field(name=cmd_signature, value=description, inline=False)
-
-        embed.set_footer(text=f"Total: {len(self.bot.commands)} comandos")
-        await ctx.send(embed=embed)
+        message = await ctx.send(embed=embed, view=view)
+        view.message = message
 
 
 async def setup(bot):
