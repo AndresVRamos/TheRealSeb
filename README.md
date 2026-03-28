@@ -116,6 +116,8 @@ El comando `.lyrics` busca letras usando múltiples fuentes con sistema de fallb
 
 El bot incluye un sistema de estadísticas con base de datos SQLite normalizada, diseñado para soportar funcionalidades de estadísticas de uso de usuarios.
 
+> **Nota:** El módulo Wrapped está desactivado por defecto. Para habilitarlo, cambiar `WRAPPED_ENABLED = True` en `core/config.py`.
+
 La base de datos usa un esquema normalizado con las siguientes tablas:
 
 **Tablas principales:**
