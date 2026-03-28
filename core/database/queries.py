@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Tuple, Dict, Any
 
 from .schema import get_connection
+from core.config import PERSONALITY_MIN_HOUR_PLAYS, PERSONALITY_MIN_HOUR_PERCENTAGE
 
 
 def normalize_string(s: str) -> str:
@@ -772,6 +773,7 @@ def get_user_yearly_stats(discord_user_id: int, discord_guild_id: int,
     ''', (user_id, guild_id, year))
     hour_row = cursor.fetchone()
     favorite_hour = hour_row['hour'] if hour_row else None
+    favorite_hour_plays = hour_row['count'] if hour_row else 0
 
     # Día favorito de la semana
     cursor.execute('''
@@ -807,6 +809,7 @@ def get_user_yearly_stats(discord_user_id: int, discord_guild_id: int,
         unique_artists=basic_row['unique_artists'],
         total_plays=basic_row['total_plays'],
         favorite_hour=favorite_hour,
+        favorite_hour_plays=favorite_hour_plays,
         top_artist_plays=top_artists[0]['play_count'] if top_artists else 0
     )
 
@@ -897,6 +900,7 @@ def get_user_listening_days(discord_user_id: int, discord_guild_id: int,
 
 def _calculate_listening_personality(unique_tracks: int, unique_artists: int,
                                      total_plays: int, favorite_hour: int,
+                                     favorite_hour_plays: int,
                                      top_artist_plays: int) -> str:
     """Calcula una personalidad de escucha basada en los hábitos de escucha"""
     if total_plays == 0:
@@ -905,12 +909,27 @@ def _calculate_listening_personality(unique_tracks: int, unique_artists: int,
     # Calcular proporciones
     variety_ratio = unique_tracks / total_plays if total_plays > 0 else 0
     artist_loyalty = top_artist_plays / total_plays if total_plays > 0 else 0
+    hour_percentage = favorite_hour_plays / total_plays if total_plays > 0 else 0
 
-    # Comprobación de noctámbulo (22:00 - 4:00)
-    is_night_owl = favorite_hour is not None and (favorite_hour >= 22 or favorite_hour <= 4)
+    # Validar que la hora favorita sea significativa
+    is_hour_significant = (
+        favorite_hour_plays >= PERSONALITY_MIN_HOUR_PLAYS
+        and hour_percentage >= PERSONALITY_MIN_HOUR_PERCENTAGE
+    )
+
+    # Comprobación de noctámbulo (18:00 - 4:00) - incluye "Noche" y "Madrugada"
+    is_night_owl = (
+        favorite_hour is not None
+        and (favorite_hour >= 18 or favorite_hour <= 4)
+        and is_hour_significant
+    )
 
     # Comprobación de madrugador (5:00 - 9:00)
-    is_early_bird = favorite_hour is not None and 5 <= favorite_hour <= 9
+    is_early_bird = (
+        favorite_hour is not None
+        and 5 <= favorite_hour <= 9
+        and is_hour_significant
+    )
 
     # Determinar personalidad
     if artist_loyalty > 0.4:

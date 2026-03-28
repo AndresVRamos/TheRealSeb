@@ -62,3 +62,9 @@ WRAPPED_TOP_TRACKS_LIMIT = 5
 
 # Cantidad de artistas en el top de Wrapped
 WRAPPED_TOP_ARTISTS_LIMIT = 5
+
+# === PERSONALIDAD MUSICAL ===
+# Umbrales para validar que la hora favorita sea significativa
+# para asignar personalidades como "Night Owl" o "Early Bird"
+PERSONALITY_MIN_HOUR_PLAYS = 10       # Mínimo de reproducciones en la hora favorita
+PERSONALITY_MIN_HOUR_PERCENTAGE = 0.20  # Porcentaje mínimo del total (20%)

@@ -54,8 +54,8 @@ async def run_bot():
     logging.info("Cog de música cargado correctamente")
 
     # Wrapped deshabilitado temporalmente - descomentar para habilitar
-    # await bot.load_extension('commands.wrapped')
-    # logging.info("Cog de Wrapped cargado correctamente")
+    await bot.load_extension('commands.wrapped')
+    logging.info("Cog de Wrapped cargado correctamente")
 
     async def shutdown():
         """Función para cerrar el bot limpiamente"""
