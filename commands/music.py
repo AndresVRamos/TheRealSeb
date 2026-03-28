@@ -149,12 +149,56 @@ class MusicCommands(commands.Cog):
             return False
 
         guild_id = ctx.guild.id
-        if guild_id not in self.voice_clients or not self.voice_clients[guild_id].is_connected():
+
+        # Verificar si ya existe una conexión de voz a nivel del bot (no solo en nuestro diccionario)
+        existing_vc = ctx.guild.voice_client
+
+        if existing_vc:
+            # Ya hay una conexión existente
+            if existing_vc.is_connected():
+                # Si está conectado, actualizar nuestro diccionario y reutilizar
+                self.voice_clients[guild_id] = existing_vc
+                logging.info(f"Reutilizando conexión existente en: {existing_vc.channel}")
+                return True
+            else:
+                # Si no está conectado, limpiar la sesión zombie
+                logging.info("Limpiando sesión de voz zombie...")
+                try:
+                    await existing_vc.disconnect(force=True)
+                except Exception as e:
+                    logging.debug(f"Error desconectando sesión zombie: {e}")
+                if guild_id in self.voice_clients:
+                    del self.voice_clients[guild_id]
+
+        # Limpiar entrada en nuestro diccionario si existe pero no es válida
+        if guild_id in self.voice_clients:
+            try:
+                if not self.voice_clients[guild_id].is_connected():
+                    del self.voice_clients[guild_id]
+            except Exception:
+                del self.voice_clients[guild_id]
+
+        # Intentar conectar
+        if guild_id not in self.voice_clients:
             try:
                 logging.info(f"Intentando conectarse al canal de voz: {ctx.author.voice.channel}")
                 voice_client = await ctx.author.voice.channel.connect(timeout=VOICE_CONNECT_TIMEOUT)
                 self.voice_clients[guild_id] = voice_client
                 logging.info(f"Conectado a: {ctx.author.voice.channel}")
+
+                # Esperar a que la conexión esté completamente establecida
+                for _ in range(10):  # Máximo 2 segundos
+                    if voice_client.is_connected():
+                        break
+                    await asyncio.sleep(0.2)
+
+                if not voice_client.is_connected():
+                    logging.error("La conexión de voz no se estabilizó")
+                    await ctx.send("⚠️ **La conexión de voz no se pudo estabilizar. Intenta de nuevo.**")
+                    if guild_id in self.voice_clients:
+                        del self.voice_clients[guild_id]
+                    return False
+
             except Exception as e:
                 logging.error(f"Error al conectar al canal de voz: {e}")
                 await ctx.send(f"⚠️ **Error al conectar al canal de voz:** {e}")
@@ -234,6 +278,14 @@ class MusicCommands(commands.Cog):
     async def play_song(self, ctx, url: str, title: str = None, requester=None):
         """Reproduce una canción"""
         try:
+            guild_id = ctx.guild.id
+
+            # Verificar que seguimos conectados antes de reproducir
+            if guild_id not in self.voice_clients or not self.voice_clients[guild_id].is_connected():
+                logging.warning("No conectado al intentar reproducir, reconectando...")
+                if not await self.ensure_voice(ctx):
+                    return
+
             logging.info(f"Attempting to play song: {url}")
             video_info = await extract_video_info(self.ytdl, url)
 
@@ -245,8 +297,6 @@ class MusicCommands(commands.Cog):
 
             logging.info(f"Stream URL obtained: {stream_url[:100]}...")
             logging.info(f"Format ID: {video_info['format_id']}")
-
-            guild_id = ctx.guild.id
 
             # Resetear la bandera manual_stop
             self.manual_stop[guild_id] = False
@@ -273,6 +323,12 @@ class MusicCommands(commands.Cog):
 
             logging.info("Creating FFmpegOpusAudio player...")
             player = discord.FFmpegOpusAudio(stream_url, **self.ffmpeg_options)
+
+            # Verificar conexión justo antes de reproducir
+            if guild_id not in self.voice_clients or not self.voice_clients[guild_id].is_connected():
+                logging.warning("Conexión perdida antes de reproducir, reconectando...")
+                if not await self.ensure_voice(ctx):
+                    return
 
             logging.info("Starting playback on voice client...")
             self.voice_clients[guild_id].play(player, after=self.after_play(ctx))
