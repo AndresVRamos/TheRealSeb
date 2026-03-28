@@ -6,6 +6,7 @@ Bot de música para Discord con soporte para YouTube y Spotify, controles avanza
 
 - 🎵 Reproducción desde YouTube y Spotify (canciones y playlists)
 - ⏯️ Controles completos: play, pause, skip, seek, loop, shuffle
+- 📻 Radio/Autoplay: reproduce canciones relacionadas automáticamente cuando termina la queue
 - 📋 Sistema de queue con paginación
 - 🔍 Búsqueda automática por nombre
 - 📊 Barra de progreso en tiempo real
