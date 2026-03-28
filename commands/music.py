@@ -17,7 +17,9 @@ from core.config import (
     TOP_USERS_LIMIT,
     USER_TOP_SONGS_LIMIT,
     HISTORY_LIMIT,
-    FUTURE_RESULT_TIMEOUT
+    FUTURE_RESULT_TIMEOUT,
+    AUTOPLAY_ENABLED,
+    AUTOPLAY_HISTORY_SIZE
 )
 from core.formatters import format_duration, parse_time_string
 from core.playback import (
@@ -25,9 +27,11 @@ from core.playback import (
     resume_playback,
     skip_song,
     toggle_loop,
+    toggle_autoplay,
     shuffle_queue,
     stop_playback
 )
+from core.autoplay_handler import get_related_song
 from core.youtube_handler import (
     create_ytdl,
     search_youtube,
@@ -82,6 +86,8 @@ class MusicCommands(commands.Cog):
         self.alone_timeout_tasks = {}
         self.last_text_channel = {}
         self.active_controls_view = {}  # Vista de controles activa por servidor
+        self.autoplay_status = {}  # Estado de autoplay por servidor
+        self.autoplay_history = {}  # Historial de URLs para evitar repeticiones
 
         # Clientes externos
         self.ytdl = create_ytdl()
@@ -346,13 +352,13 @@ class MusicCommands(commands.Cog):
             # Crear embed y vista con controles
             embed = create_now_playing_embed(
                 self.song_data, self.queues, self.loop_status,
-                guild_id, ctx.author
+                guild_id, ctx.author, autoplay_status=self.autoplay_status
             )
 
             view = MusicControls(
                 ctx, None, self.voice_clients, self.loop_status,
                 self.queues, self.song_data, self.manual_stop,
-                bot=self.bot
+                bot=self.bot, autoplay_status=self.autoplay_status
             )
 
             message = await ctx.send(embed=embed, view=view)
@@ -402,9 +408,61 @@ class MusicCommands(commands.Cog):
             logging.info(f"Playing next song from queue: {next_title}")
             await self.play_song(ctx, next_link, next_title, next_requester)
         else:
-            logging.info("La queue está vacía, no hay nada que reproducir.")
-            await update_presence(self.bot,False)
-            await ctx.send("🚫 **La queue está vacía.**")
+            # Verificar si autoplay está habilitado para este servidor
+            if AUTOPLAY_ENABLED and self.autoplay_status.get(guild_id, False):
+                await self._handle_autoplay(ctx, guild_id)
+            else:
+                logging.info("La queue está vacía, no hay nada que reproducir.")
+                await update_presence(self.bot, False)
+                await ctx.send("🚫 **La queue está vacía.**")
+
+    async def _handle_autoplay(self, ctx, guild_id: int):
+        """Busca y reproduce una cancion relacionada cuando autoplay está activo"""
+        if guild_id not in self.song_data:
+            logging.info("Autoplay: No hay datos de cancion anterior")
+            await ctx.send("🚫 **La queue está vacía y no hay canción anterior para hacerle radio.**")
+            await update_presence(self.bot, False)
+            return
+
+        current_song = self.song_data[guild_id]
+
+        if guild_id not in self.autoplay_history:
+            self.autoplay_history[guild_id] = set()
+
+        if current_song.get('url'):
+            self.autoplay_history[guild_id].add(current_song['url'])
+
+        if len(self.autoplay_history[guild_id]) > AUTOPLAY_HISTORY_SIZE:
+            history_list = list(self.autoplay_history[guild_id])
+            self.autoplay_history[guild_id] = set(history_list[-AUTOPLAY_HISTORY_SIZE:])
+
+        await ctx.send("🔄 **Autoplay:** Buscando canción relacionada...")
+
+        try:
+            related = await get_related_song(
+                self.ytdl,
+                current_song,
+                self.autoplay_history[guild_id],
+                self.sp
+            )
+
+            if related:
+                url, title, duration = related
+                logging.info(f"Autoplay: Encontrada cancion relacionada: {title}")
+
+                self.autoplay_history[guild_id].add(url)
+
+                await ctx.send(f"📻 **Autoplay:** *{title}*")
+                await self.play_song(ctx, url, title, ctx.author)
+            else:
+                logging.info("Autoplay: No se encontró canción relacionada")
+                await ctx.send("🚫 **Autoplay:** No se encontró canción relacionada.")
+                await update_presence(self.bot, False)
+
+        except Exception as e:
+            logging.error(f"Error en autoplay: {e}")
+            await ctx.send("⚠️ **Autoplay:** Error al buscar canción relacionada.")
+            await update_presence(self.bot, False)
 
     async def alone_timeout(self, guild_id: int, channel):
         """Espera y desconecta el bot si sigue solo"""
@@ -751,13 +809,13 @@ class MusicCommands(commands.Cog):
 
         embed = create_now_playing_embed(
             self.song_data, self.queues, self.loop_status,
-            guild_id, ctx.author
+            guild_id, ctx.author, autoplay_status=self.autoplay_status
         )
 
         view = MusicControls(
             ctx, None, self.voice_clients, self.loop_status,
             self.queues, self.song_data, self.manual_stop,
-            bot=self.bot
+            bot=self.bot, autoplay_status=self.autoplay_status
         )
 
         message = await ctx.send(embed=embed, view=view)
@@ -912,6 +970,23 @@ class MusicCommands(commands.Cog):
             await ctx.send("🔁 **Loop activado!**")
         else:
             await ctx.send("🔁 **Loop desactivado!**")
+
+    @commands.command(name="autoplay", aliases=["radio"], help="Activa o desactiva el autoplay de canciones relacionadas.")
+    async def autoplay_cmd(self, ctx):
+        if not await self.ensure_voice(ctx):
+            return
+
+        if not AUTOPLAY_ENABLED:
+            await ctx.send("🚫 **El autoplay está deshabilitado en la configuración del bot.**")
+            return
+
+        guild_id = ctx.guild.id
+        is_autoplay = toggle_autoplay(guild_id, self.autoplay_status)
+
+        if is_autoplay:
+            await ctx.send("📻 **Autoplay activado!** Cuando la queue termine, se reproducirán canciones parecidas.")
+        else:
+            await ctx.send("📻 **Autoplay desactivado!**")
 
     @commands.command(name="stop", help="Detiene la reproducción y limpia la queue.")
     async def stop(self, ctx):

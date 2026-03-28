@@ -58,6 +58,7 @@ python maniac.py
 | `.seek <tiempo>` | Salta a un timestamp (ej: 1m30s, 2:15) |
 | `.pause` / `.resume` | Pausa/reanuda la reproducción |
 | `.loop` | Activa/desactiva loop |
+| `.autoplay` / `.radio` | Activa/desactiva autoplay de canciones relacionadas |
 | `.shuffle` | Mezcla la queue |
 | `.move <de> <a>` | Mueve una canción en la queue |
 | `.remove <posición>` | Remueve una canción de la queue |

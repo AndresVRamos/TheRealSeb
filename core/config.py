@@ -80,6 +80,16 @@ LOYALIST_THRESHOLD = 0.3         # <30% variedad = Loyalist
 SPECIALIST_MAX_ARTISTS = 5       # <5 artistas diferentes = Specialist
 ENTHUSIAST_MIN_PLAYS = 100       # >100 reproducciones = Music Enthusiast
 
+# === AUTOPLAY ===
+# Habilitar o deshabilitar autoplay globalmente
+AUTOPLAY_ENABLED = True
+
+# Cantidad de canciones a mantener en historial para evitar repeticiones
+AUTOPLAY_HISTORY_SIZE = 10
+
+# Tiempo maximo de espera para buscar cancion relacionada (segundos)
+AUTOPLAY_SEARCH_TIMEOUT = 10
+
 # === LETRAS ===
 # Timeout para APIs de letras (segundos)
 LYRICS_API_TIMEOUT = 10

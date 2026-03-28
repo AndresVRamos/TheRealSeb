@@ -169,3 +169,140 @@ def extract_track_id_from_url(url: str) -> str:
         ID del track
     """
     return url.split("/")[-1].split("?")[0]
+
+
+async def search_spotify_track(sp, title: str, artist: str = None) -> dict:
+    """
+    Busca un track en Spotify por titulo y artista
+
+    Args:
+        sp: Cliente de Spotify
+        title: Titulo de la cancion
+        artist: Artista (opcional)
+
+    Returns:
+        Diccionario con info del track o None si no se encuentra
+    """
+    try:
+        # Limpiar el titulo de caracteres especiales
+        clean_title = re.sub(r'\([^)]*\)', '', title)
+        clean_title = re.sub(r'\[[^\]]*\]', '', clean_title)
+        clean_title = clean_title.strip()
+
+        # Construir query
+        if artist and artist.lower() not in ['unknown', 'desconocido', '', 'topic', 'vevo']:
+            query = f"track:{clean_title} artist:{artist}"
+        else:
+            query = clean_title
+
+        logging.info(f"Spotify: Buscando track con query: '{query}'")
+        results = sp.search(q=query, type='track', limit=1)
+
+        if results['tracks']['items']:
+            track = results['tracks']['items'][0]
+            logging.info(f"Spotify: Encontrado track: {track['name']} - {track['artists'][0]['name']}")
+            return {
+                'id': track['id'],
+                'name': track['name'],
+                'artist': track['artists'][0]['name'],
+                'duration_ms': track['duration_ms']
+            }
+
+        logging.info(f"Spotify: No se encontro track para: {query}")
+        return None
+
+    except Exception as e:
+        logging.error(f"Error buscando track en Spotify: {e}")
+        return None
+
+
+async def get_spotify_recommendations(sp, track_id: str, limit: int = 10) -> list:
+    """
+    Obtiene canciones relacionadas usando top tracks del artista y artistas relacionados.
+    (El endpoint /recommendations fue deprecado para Client Credentials)
+
+    Args:
+        sp: Cliente de Spotify
+        track_id: ID del track semilla
+        limit: Cantidad de recomendaciones
+
+    Returns:
+        Lista de diccionarios con info de tracks recomendados
+    """
+    recommendations = []
+
+    try:
+        # Obtener info del track para saber el artista
+        track_info = sp.track(track_id)
+        artist_id = track_info['artists'][0]['id']
+        artist_name = track_info['artists'][0]['name']
+        current_track_name = track_info['name']
+
+        logging.info(f"Spotify: Buscando canciones relacionadas para artista: {artist_name}")
+
+        # Estrategia 1: Top tracks del mismo artista
+        try:
+            top_tracks = sp.artist_top_tracks(artist_id, country='US')
+            for track in top_tracks['tracks'][:5]:
+                # Evitar la misma canción
+                if track['id'] != track_id:
+                    recommendations.append({
+                        'id': track['id'],
+                        'name': track['name'],
+                        'artist': track['artists'][0]['name'],
+                        'duration_ms': track['duration_ms']
+                    })
+                    logging.info(f"Spotify: Top track: {track['name']} - {track['artists'][0]['name']}")
+        except Exception as e:
+            logging.warning(f"Spotify: Error obteniendo top tracks: {e}")
+
+        # Estrategia 2: Artistas relacionados + sus top tracks
+        try:
+            related_artists = sp.artist_related_artists(artist_id)
+            for artist in related_artists['artists'][:3]:
+                related_top = sp.artist_top_tracks(artist['id'], country='US')
+                for track in related_top['tracks'][:2]:
+                    recommendations.append({
+                        'id': track['id'],
+                        'name': track['name'],
+                        'artist': track['artists'][0]['name'],
+                        'duration_ms': track['duration_ms']
+                    })
+                    logging.info(f"Spotify: Artista relacionado: {track['name']} - {track['artists'][0]['name']}")
+        except Exception as e:
+            logging.warning(f"Spotify: Error obteniendo artistas relacionados: {e}")
+
+        return recommendations[:limit]
+
+    except Exception as e:
+        logging.error(f"Error obteniendo recomendaciones de Spotify: {e}")
+        return []
+
+
+async def get_youtube_url_for_track(track_name: str, artist_name: str) -> str:
+    """
+    Busca un track en YouTube dado nombre y artista
+
+    Args:
+        track_name: Nombre del track
+        artist_name: Nombre del artista
+
+    Returns:
+        URL de YouTube o None
+    """
+    try:
+        search_query = f"{track_name} {artist_name}"
+        query_string = urllib.parse.urlencode({'search_query': search_query})
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(YOUTUBE_RESULTS_URL + query_string) as response:
+                content = await response.text()
+                search_results = re.findall(r'/watch\?v=(.{11})', content)
+                if search_results:
+                    return YOUTUBE_BASE_URL + 'watch?v=' + search_results[0]
+
+        return None
+
+    except Exception as e:
+        logging.error(f"Error buscando en YouTube: {e}")
+        return None

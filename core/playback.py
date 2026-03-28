@@ -90,6 +90,18 @@ def toggle_loop(guild_id, loop_status):
     return loop_status[guild_id]
 
 
+def toggle_autoplay(guild_id, autoplay_status):
+    """
+    Activa o desactiva el autoplay para un servidor
+
+    Returns:
+        bool: El nuevo estado del autoplay (True si está activado, False si está desactivado)
+    """
+    autoplay_status[guild_id] = not autoplay_status.get(guild_id, False)
+    logging.info(f"Autoplay {'activado' if autoplay_status[guild_id] else 'desactivado'} en guild {guild_id}")
+    return autoplay_status[guild_id]
+
+
 async def shuffle_queue(guild_id, queues):
     """
     Mezcla aleatoriamente la queue

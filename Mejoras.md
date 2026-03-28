@@ -66,9 +66,9 @@
    - En servidores grandes, requerir X votos para skip
    - Configurable por servidor
 
-4. **Comando de radio/autoplay**
-   - Cuando queue termina, buscar canciones relacionadas automáticamente
-   - Usar recomendaciones de YouTube/Spotify
+~~4. **Comando de radio/autoplay**~~ ✅
+   ~~- Cuando queue termina, buscar canciones relacionadas automáticamente~~
+   ~~- Usar recomendaciones de YouTube/Spotify~~
 
 5. **Estadísticas del servidor**
    - `.stats` - Canciones más reproducidas, usuario que más pone música, tiempo total escuchado

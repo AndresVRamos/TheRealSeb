@@ -191,3 +191,166 @@ def is_youtube_url(url: str) -> bool:
 def is_playlist_url(url: str) -> bool:
     """Verifica si una URL es de una playlist de YouTube"""
     return "playlist?list=" in url or ("list=" in url and "watch?v=" not in url)
+
+
+async def get_related_videos(url: str, limit: int = 15) -> list:
+    """
+    Extrae los videos relacionados de un video de YouTube.
+    Intenta primero con related_videos, luego con YouTube Mix playlist.
+
+    Args:
+        url: URL del video de YouTube
+        limit: Cantidad maxima de videos relacionados a retornar
+
+    Returns:
+        Lista de diccionarios con {id, title, duration, url}
+    """
+    # Extraer video_id de la URL
+    video_id = None
+    if 'watch?v=' in url:
+        match = re.search(r'watch\?v=([^&]+)', url)
+        if match:
+            video_id = match.group(1)
+    elif 'youtu.be/' in url:
+        match = re.search(r'youtu\.be/([^?]+)', url)
+        if match:
+            video_id = match.group(1)
+
+    if not video_id:
+        logging.error("get_related_videos: No se pudo extraer video_id")
+        return []
+
+    related = []
+
+    # Estrategia 1: Intentar obtener YouTube Mix playlist (RD + video_id)
+    mix_url = f"https://www.youtube.com/watch?v={video_id}&list=RD{video_id}"
+    logging.info(f"get_related_videos: Intentando Mix playlist: {mix_url}")
+    related = await get_mix_playlist_videos(mix_url, video_id, limit)
+
+    if related:
+        logging.info(f"get_related_videos: Encontrados {len(related)} en Mix playlist")
+        return related
+
+    # Estrategia 2: Intentar con related_videos del video original
+    related = await _get_related_from_video(url, limit)
+
+    if related:
+        logging.info(f"get_related_videos: Encontrados {len(related)} en related_videos")
+        return related
+
+    logging.info("get_related_videos: No se encontraron videos relacionados")
+    return []
+
+
+async def get_mix_playlist_videos(mix_url: str, original_video_id: str, limit: int) -> list:
+    """
+    Extrae videos de una YouTube Mix playlist.
+
+    Args:
+        mix_url: URL del mix (con list=RD...)
+        original_video_id: ID del video original a excluir
+        limit: Cantidad maxima de videos a retornar
+
+    Returns:
+        Lista de diccionarios con {id, title, duration, url}
+    """
+    try:
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': True,  # Flat para playlists es mas rapido
+            'skip_download': True,
+            'logger': YTDLLogger(),
+            'playlistend': limit + 5,  # Extra por si filtramos algunos
+        }
+
+        loop = asyncio.get_event_loop()
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            data = await loop.run_in_executor(
+                None,
+                lambda: ydl.extract_info(mix_url, download=False)
+            )
+
+        if not data:
+            return []
+
+        related = []
+
+        # Mix playlists tienen 'entries'
+        entries = data.get('entries', [])
+        for entry in entries:
+            if not entry:
+                continue
+
+            entry_id = entry.get('id', '')
+
+            # Saltar el video original
+            if entry_id == original_video_id:
+                continue
+
+            related.append({
+                'id': entry_id,
+                'title': entry.get('title', ''),
+                'duration': entry.get('duration', 0),
+                'url': f"https://www.youtube.com/watch?v={entry_id}"
+            })
+
+            if len(related) >= limit:
+                break
+
+        return related
+
+    except Exception as e:
+        logging.debug(f"_get_mix_playlist_videos: Error: {e}")
+        return []
+
+
+async def _get_related_from_video(url: str, limit: int) -> list:
+    """
+    Intenta extraer related_videos del video usando EJS.
+    """
+    try:
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': False,
+            'skip_download': True,
+            'logger': YTDLLogger(),
+            # Habilitar todos los JS runtimes disponibles
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['web'],
+                }
+            },
+        }
+
+        loop = asyncio.get_event_loop()
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            data = await loop.run_in_executor(
+                None,
+                lambda: ydl.extract_info(url, download=False)
+            )
+
+        if not data:
+            return []
+
+        related = []
+
+        # Buscar en related_videos
+        if 'related_videos' in data and data['related_videos']:
+            for video in data['related_videos'][:limit]:
+                if video and video.get('id'):
+                    related.append({
+                        'id': video.get('id'),
+                        'title': video.get('title', ''),
+                        'duration': video.get('duration', 0),
+                        'url': f"https://www.youtube.com/watch?v={video.get('id')}"
+                    })
+
+        return related
+
+    except Exception as e:
+        logging.debug(f"_get_related_from_video: Error: {e}")
+        return []

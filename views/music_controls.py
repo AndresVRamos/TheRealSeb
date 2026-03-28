@@ -13,12 +13,13 @@ from core.playback import (
     resume_playback,
     skip_song,
     toggle_loop,
+    toggle_autoplay,
     shuffle_queue,
     stop_playback
 )
 
 
-def create_now_playing_embed(song_data, queues, loop_status, guild_id, author=None, song_finished=False):
+def create_now_playing_embed(song_data, queues, loop_status, guild_id, author=None, song_finished=False, autoplay_status=None):
     """
     Crea el embed de 'Sonando Ahora' con la información de la canción actual.
 
@@ -29,6 +30,7 @@ def create_now_playing_embed(song_data, queues, loop_status, guild_id, author=No
         guild_id: ID del servidor
         author: Usuario fallback
         song_finished: Si True, muestra el tiempo como igual a la duración total
+        autoplay_status: Diccionario con estado de autoplay por guild
 
     Returns:
         discord.Embed con la información de la canción
@@ -84,11 +86,18 @@ def create_now_playing_embed(song_data, queues, loop_status, guild_id, author=No
             inline=False
         )
 
-    # Footer con estado de loop
+    # Footer con estado de loop y autoplay
     if requester:
+        status_parts = []
         if loop_status.get(guild_id, False):
+            status_parts.append("🔁 Loop")
+        if autoplay_status and autoplay_status.get(guild_id, False):
+            status_parts.append("📻 Radio")
+
+        if status_parts:
+            status_text = " | ".join(status_parts)
             embed.set_footer(
-                text=f"🔁 Loop activado | Pedido por {requester.display_name}",
+                text=f"{status_text} | Pedido por {requester.display_name}",
                 icon_url=requester.avatar
             )
         else:
@@ -103,12 +112,13 @@ def create_now_playing_embed(song_data, queues, loop_status, guild_id, author=No
 class MusicControls(discord.ui.View):
     """Vista con botones de control de reproducción"""
 
-    def __init__(self, ctx, message, voice_clients, loop_status, queues, song_data, manual_stop, bot=None):
+    def __init__(self, ctx, message, voice_clients, loop_status, queues, song_data, manual_stop, bot=None, autoplay_status=None):
         super().__init__(timeout=MUSIC_CONTROLS_TIMEOUT)
         self.ctx = ctx
         self.message = message
         self.voice_clients = voice_clients
         self.loop_status = loop_status
+        self.autoplay_status = autoplay_status if autoplay_status is not None else {}
         self.queues = queues
         self.song_data = song_data
         self.manual_stop = manual_stop
@@ -175,7 +185,7 @@ class MusicControls(discord.ui.View):
                 try:
                     embed = create_now_playing_embed(
                         self.song_data, self.queues, self.loop_status,
-                        self.guild_id, self.ctx.author
+                        self.guild_id, self.ctx.author, autoplay_status=self.autoplay_status
                     )
                     self.update_button_states()
                     await self.message.edit(embed=embed, view=self)
@@ -200,6 +210,7 @@ class MusicControls(discord.ui.View):
 
         vc = self.voice_clients[guild_id]
 
+        # [0] Pause/Resume
         if vc.is_playing():
             self.children[0].emoji = "⏸️"
             self.children[0].label = "Pausar"
@@ -211,8 +222,10 @@ class MusicControls(discord.ui.View):
         else:
             self.children[0].disabled = True
 
+        # [1] Skip
         self.children[1].disabled = not (vc.is_playing() or vc.is_paused())
 
+        # [2] Loop
         if self.loop_status.get(guild_id, False):
             self.children[2].style = discord.ButtonStyle.success
             self.children[2].label = "Loop: ON"
@@ -220,10 +233,20 @@ class MusicControls(discord.ui.View):
             self.children[2].style = discord.ButtonStyle.secondary
             self.children[2].label = "Loop: OFF"
 
-        queue_len = len(self.queues.get(guild_id, []))
-        self.children[3].disabled = queue_len < 2
+        # [3] Autoplay/Radio
+        if self.autoplay_status.get(guild_id, False):
+            self.children[3].style = discord.ButtonStyle.success
+            self.children[3].label = "Radio: ON"
+        else:
+            self.children[3].style = discord.ButtonStyle.secondary
+            self.children[3].label = "Radio: OFF"
 
-        self.children[4].disabled = False
+        # [4] Shuffle
+        queue_len = len(self.queues.get(guild_id, []))
+        self.children[4].disabled = queue_len < 2
+
+        # [5] Stop
+        self.children[5].disabled = False
 
     def _get_status_embed(self):
         """Obtiene el embed del estado actual: canción sonando o mensaje de error si no hay reproducción"""
@@ -241,7 +264,7 @@ class MusicControls(discord.ui.View):
 
         return create_now_playing_embed(
             self.song_data, self.queues, self.loop_status,
-            guild_id, self.ctx.author
+            guild_id, self.ctx.author, autoplay_status=self.autoplay_status
         )
 
     async def update_embed(self, interaction: discord.Interaction):
@@ -299,6 +322,21 @@ class MusicControls(discord.ui.View):
         else:
             logging.info(f"Loop desactivado vía botón por {interaction.user}")
             await interaction.response.send_message("🔁 **Loop desactivado!**", ephemeral=True)
+
+        await self.update_embed_after_response(interaction)
+
+    @discord.ui.button(label="Radio: OFF", emoji="📻", style=discord.ButtonStyle.secondary, custom_id="autoplay")
+    async def autoplay_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        guild_id = self.guild_id
+
+        is_autoplay = toggle_autoplay(guild_id, self.autoplay_status)
+
+        if is_autoplay:
+            logging.info(f"Autoplay activado vía botón por {interaction.user}")
+            await interaction.response.send_message("📻 **Radio activado!** Cuando termine la queue, se reproducirán canciones parecidas.", ephemeral=True)
+        else:
+            logging.info(f"Autoplay desactivado vía botón por {interaction.user}")
+            await interaction.response.send_message("📻 **Radio desactivado.**", ephemeral=True)
 
         await self.update_embed_after_response(interaction)
 
