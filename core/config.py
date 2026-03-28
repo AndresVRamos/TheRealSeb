@@ -55,7 +55,8 @@ HISTORY_LIMIT = 10
 
 # === WRAPPED ===
 # Habilitar o deshabilitar el módulo Wrapped (comandos .wrapped, .ws, etc.)
-WRAPPED_ENABLED = True
+# Por defecto está desactivado. Cambiar a True para habilitar.
+WRAPPED_ENABLED = False
 
 # Año mínimo para estadísticas Wrapped
 WRAPPED_MIN_YEAR = 2020
