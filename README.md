@@ -76,7 +76,7 @@ python maniac.py
 | `.topusers` | Top usuarios del servidor |
 | `.history [@user]` | Historial de reproducciones recientes |
 
-### Comandos de Wrapped (Deshabilitados por defecto)
+### Comandos de Wrapped
 
 | Comando | Descripción |
 |---------|-------------|
@@ -85,12 +85,6 @@ python maniac.py
 | `.topartists [@user] [año]` | Top artistas del año |
 | `.listeningtime` / `.lt` | Tiempo total de escucha |
 | `.streak` | Racha de días consecutivos escuchando |
-
-> Para habilitar los comandos de Wrapped, descomentar las líneas en `maniac.py`:
-> ```python
-> await bot.load_extension('commands.wrapped')
-> logging.info("Cog de Wrapped cargado correctamente")
-> ```
 
 ## 📝 Comando de Letras
 
@@ -147,7 +141,7 @@ El sistema Wrapped asigna una "personalidad musical" basada en tus hábitos de e
 | **Devoted Fan** | >40% de tus plays son del mismo artista |
 | **Explorer** | >80% de tus canciones son únicas (poca repetición) |
 | **Loyalist** | <30% variedad (repites mucho las mismas canciones) |
-| **Night Owl** | Tu hora favorita es entre 10 PM - 4 AM |
+| **Night Owl** | Tu hora favorita es entre 6 PM - 4 AM (Noche/Madrugada) |
 | **Early Bird** | Tu hora favorita es entre 5 AM - 9 AM |
 | **Specialist** | Escuchas menos de 5 artistas diferentes |
 | **Music Enthusiast** | Más de 100 reproducciones en el año |
@@ -155,6 +149,8 @@ El sistema Wrapped asigna una "personalidad musical" basada en tus hábitos de e
 | **Newcomer** | 0 reproducciones |
 
 La evaluación se hace en orden de prioridad (Devoted Fan tiene mayor prioridad que Explorer, etc.).
+
+> **Nota:** Para las personalidades basadas en hora (Night Owl, Early Bird), se requiere un mínimo de 10 reproducciones en esa hora favorita Y que represente al menos el 20% del total de reproducciones. Esto asegura que el patrón sea significativo.
 
 ### Funcionalidades Wrapped
 
@@ -176,7 +172,7 @@ Music Maniac/
 ├── maniac.py              # Punto de entrada principal
 ├── commands/
 │   ├── music.py           # Comandos de música
-│   └── wrapped.py         # Comandos de Wrapped (deshabilitado)
+│   └── wrapped.py         # Comandos de Wrapped
 ├── core/
 │   ├── config.py          # Configuración centralizada
 │   ├── stats_handler.py   # Facade para estadísticas
