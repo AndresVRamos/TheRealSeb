@@ -6,7 +6,7 @@ import time
 import logging
 import asyncio
 
-from core.config import MUSIC_CONTROLS_TIMEOUT, NOWPLAYING_UPDATE_INTERVAL
+from core.config import MUSIC_CONTROLS_TIMEOUT, NOWPLAYING_UPDATE_INTERVAL, AUTOPLAY_ENABLED
 from core.formatters import format_duration, create_progress_bar
 from core.playback import (
     pause_playback,
@@ -91,7 +91,7 @@ def create_now_playing_embed(song_data, queues, loop_status, guild_id, author=No
         status_parts = []
         if loop_status.get(guild_id, False):
             status_parts.append("🔁 Loop")
-        if autoplay_status and autoplay_status.get(guild_id, False):
+        if AUTOPLAY_ENABLED and autoplay_status and autoplay_status.get(guild_id, False):
             status_parts.append("📻 Radio")
 
         if status_parts:
@@ -125,6 +125,10 @@ class MusicControls(discord.ui.View):
         self.guild_id = ctx.guild.id
         self.bot = bot
         self.update_task = None  # Tarea de actualización del embed
+
+        # Remover botón de autoplay si está deshabilitado globalmente
+        if not AUTOPLAY_ENABLED:
+            self.remove_item(self.autoplay_button)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         """Verificar que el usuario esté en el mismo canal de voz que el bot"""
@@ -198,6 +202,13 @@ class MusicControls(discord.ui.View):
         except Exception as e:
             logging.debug(f"Error en _update_loop: {e}")
 
+    def _get_button(self, custom_id: str):
+        """Obtiene un botón por su custom_id"""
+        for item in self.children:
+            if hasattr(item, 'custom_id') and item.custom_id == custom_id:
+                return item
+        return None
+
     def update_button_states(self):
         """Actualizar estados de botones según el estado actual de reproducción"""
         guild_id = self.guild_id
@@ -210,43 +221,55 @@ class MusicControls(discord.ui.View):
 
         vc = self.voice_clients[guild_id]
 
-        # [0] Pause/Resume
-        if vc.is_playing():
-            self.children[0].emoji = "⏸️"
-            self.children[0].label = "Pausar"
-            self.children[0].disabled = False
-        elif vc.is_paused():
-            self.children[0].emoji = "▶️"
-            self.children[0].label = "Reanudar"
-            self.children[0].disabled = False
-        else:
-            self.children[0].disabled = True
+        # Pause/Resume
+        pause_btn = self._get_button("pause_resume")
+        if pause_btn:
+            if vc.is_playing():
+                pause_btn.emoji = "⏸️"
+                pause_btn.label = "Pausar"
+                pause_btn.disabled = False
+            elif vc.is_paused():
+                pause_btn.emoji = "▶️"
+                pause_btn.label = "Reanudar"
+                pause_btn.disabled = False
+            else:
+                pause_btn.disabled = True
 
-        # [1] Skip
-        self.children[1].disabled = not (vc.is_playing() or vc.is_paused())
+        # Skip
+        skip_btn = self._get_button("skip")
+        if skip_btn:
+            skip_btn.disabled = not (vc.is_playing() or vc.is_paused())
 
-        # [2] Loop
-        if self.loop_status.get(guild_id, False):
-            self.children[2].style = discord.ButtonStyle.success
-            self.children[2].label = "Loop: ON"
-        else:
-            self.children[2].style = discord.ButtonStyle.secondary
-            self.children[2].label = "Loop: OFF"
+        # Loop
+        loop_btn = self._get_button("loop")
+        if loop_btn:
+            if self.loop_status.get(guild_id, False):
+                loop_btn.style = discord.ButtonStyle.success
+                loop_btn.label = "Loop: ON"
+            else:
+                loop_btn.style = discord.ButtonStyle.secondary
+                loop_btn.label = "Loop: OFF"
 
-        # [3] Autoplay/Radio
-        if self.autoplay_status.get(guild_id, False):
-            self.children[3].style = discord.ButtonStyle.success
-            self.children[3].label = "Radio: ON"
-        else:
-            self.children[3].style = discord.ButtonStyle.secondary
-            self.children[3].label = "Radio: OFF"
+        # Autoplay/Radio (solo si existe el botón)
+        autoplay_btn = self._get_button("autoplay")
+        if autoplay_btn:
+            if self.autoplay_status.get(guild_id, False):
+                autoplay_btn.style = discord.ButtonStyle.success
+                autoplay_btn.label = "Radio: ON"
+            else:
+                autoplay_btn.style = discord.ButtonStyle.secondary
+                autoplay_btn.label = "Radio: OFF"
 
-        # [4] Shuffle
-        queue_len = len(self.queues.get(guild_id, []))
-        self.children[4].disabled = queue_len < 2
+        # Shuffle
+        shuffle_btn = self._get_button("shuffle")
+        if shuffle_btn:
+            queue_len = len(self.queues.get(guild_id, []))
+            shuffle_btn.disabled = queue_len < 2
 
-        # [5] Stop
-        self.children[5].disabled = False
+        # Stop
+        stop_btn = self._get_button("stop")
+        if stop_btn:
+            stop_btn.disabled = False
 
     def _get_status_embed(self):
         """Obtiene el embed del estado actual: canción sonando o mensaje de error si no hay reproducción"""
