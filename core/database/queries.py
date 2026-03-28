@@ -9,7 +9,15 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Tuple, Dict, Any
 
 from .schema import get_connection
-from core.config import PERSONALITY_MIN_HOUR_PLAYS, PERSONALITY_MIN_HOUR_PERCENTAGE
+from core.config import (
+    PERSONALITY_MIN_HOUR_PLAYS,
+    PERSONALITY_MIN_HOUR_PERCENTAGE,
+    DEVOTED_FAN_THRESHOLD,
+    EXPLORER_THRESHOLD,
+    LOYALIST_THRESHOLD,
+    SPECIALIST_MAX_ARTISTS,
+    ENTHUSIAST_MIN_PLAYS
+)
 
 
 def normalize_string(s: str) -> str:
@@ -932,19 +940,19 @@ def _calculate_listening_personality(unique_tracks: int, unique_artists: int,
     )
 
     # Determinar personalidad
-    if artist_loyalty > 0.4:
+    if artist_loyalty > DEVOTED_FAN_THRESHOLD:
         return "Devoted Fan"
-    elif variety_ratio > 0.8:
+    elif variety_ratio > EXPLORER_THRESHOLD:
         return "Explorer"
-    elif variety_ratio < 0.3:
+    elif variety_ratio < LOYALIST_THRESHOLD:
         return "Loyalist"
     elif is_night_owl:
         return "Night Owl"
     elif is_early_bird:
         return "Early Bird"
-    elif unique_artists < 5:
+    elif unique_artists < SPECIALIST_MAX_ARTISTS:
         return "Specialist"
-    elif total_plays > 100:
+    elif total_plays > ENTHUSIAST_MIN_PLAYS:
         return "Music Enthusiast"
     else:
         return "Casual Listener"

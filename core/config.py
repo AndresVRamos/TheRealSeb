@@ -54,6 +54,9 @@ USER_TOP_SONGS_LIMIT = 5
 HISTORY_LIMIT = 10
 
 # === WRAPPED ===
+# Habilitar o deshabilitar el módulo Wrapped (comandos .wrapped, .ws, etc.)
+WRAPPED_ENABLED = True
+
 # Año mínimo para estadísticas Wrapped
 WRAPPED_MIN_YEAR = 2020
 
@@ -68,3 +71,24 @@ WRAPPED_TOP_ARTISTS_LIMIT = 5
 # para asignar personalidades como "Night Owl" o "Early Bird"
 PERSONALITY_MIN_HOUR_PLAYS = 10       # Mínimo de reproducciones en la hora favorita
 PERSONALITY_MIN_HOUR_PERCENTAGE = 0.20  # Porcentaje mínimo del total (20%)
+
+# Umbrales para asignación de personalidades
+DEVOTED_FAN_THRESHOLD = 0.4      # >40% del mismo artista = Devoted Fan
+EXPLORER_THRESHOLD = 0.8         # >80% canciones únicas = Explorer
+LOYALIST_THRESHOLD = 0.3         # <30% variedad = Loyalist
+SPECIALIST_MAX_ARTISTS = 5       # <5 artistas diferentes = Specialist
+ENTHUSIAST_MIN_PLAYS = 100       # >100 reproducciones = Music Enthusiast
+
+# === LETRAS ===
+# Timeout para APIs de letras (segundos)
+LYRICS_API_TIMEOUT = 10
+# Umbral de similitud para coincidencia de artista
+LYRICS_ARTIST_SIMILARITY = 0.3
+
+# === COLORES DE EMBEDS ===
+# Color verde de Spotify (RGB)
+SPOTIFY_GREEN_RGB = (30, 215, 96)
+
+# === OTROS TIMEOUTS ===
+# Timeout para esperar resultados de futures (segundos)
+FUTURE_RESULT_TIMEOUT = 5

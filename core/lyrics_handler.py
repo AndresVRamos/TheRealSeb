@@ -11,6 +11,8 @@ import os
 from typing import Optional, Tuple
 from difflib import SequenceMatcher
 
+from core.config import LYRICS_API_TIMEOUT, LYRICS_ARTIST_SIMILARITY
+
 
 def similarity(a: str, b: str) -> float:
     """Calcula la similitud entre dos strings (0.0 a 1.0)"""
@@ -38,7 +40,7 @@ def is_relevant_match(search_title: str, search_artist: str, found_title: str, f
         artist_contained = search_artist in found_artist or found_artist in search_artist
 
         # Aceptar si el título es muy similar O está contenido, Y el artista coincide razonablemente
-        if (title_sim >= threshold or title_contained) and (artist_sim >= 0.3 or artist_contained):
+        if (title_sim >= threshold or title_contained) and (artist_sim >= LYRICS_ARTIST_SIMILARITY or artist_contained):
             return True
 
         # También aceptar si ambos tienen buena similitud combinada
@@ -109,7 +111,7 @@ async def fetch_lyrics_lrclib(title: str, artist: str = "") -> Optional[dict]:
 
         async with aiohttp.ClientSession() as session:
             params = {"q": query}
-            async with session.get(base_url, params=params, timeout=10) as response:
+            async with session.get(base_url, params=params, timeout=LYRICS_API_TIMEOUT) as response:
                 if response.status != 200:
                     return None
 
@@ -173,7 +175,7 @@ async def fetch_lyrics_genius(title: str, artist: str = "", api_key: str = None)
 
         def search_genius():
             genius = lyricsgenius.Genius(api_key, verbose=False, remove_section_headers=True)
-            genius.timeout = 10
+            genius.timeout = LYRICS_API_TIMEOUT
 
             # Buscar canción con artista si lo tenemos
             song = genius.search_song(title, artist if artist else None)
@@ -228,7 +230,7 @@ async def fetch_lyrics_ovh(title: str, artist: str = "") -> Optional[dict]:
         base_url = f"https://api.lyrics.ovh/v1/{artist}/{title}"
 
         async with aiohttp.ClientSession() as session:
-            async with session.get(base_url, timeout=10) as response:
+            async with session.get(base_url, timeout=LYRICS_API_TIMEOUT) as response:
                 if response.status != 200:
                     return None
 

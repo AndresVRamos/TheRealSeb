@@ -12,7 +12,7 @@ from core.database.queries import (
     get_user_listening_days
 )
 from core.formatters import format_duration
-from core.config import WRAPPED_TOP_TRACKS_LIMIT, WRAPPED_TOP_ARTISTS_LIMIT
+from core.config import WRAPPED_TOP_TRACKS_LIMIT, WRAPPED_TOP_ARTISTS_LIMIT, SPOTIFY_GREEN_RGB
 
 
 # Nombres de días en español
@@ -114,7 +114,7 @@ def create_wrapped_embed(user: discord.Member, stats: Dict[str, Any],
     embed = discord.Embed(
         title=f"🎵 Tu Wrapped {year}",
         description=f"**{user.display_name}**, este fue tu año musical en **{guild.name}**",
-        color=discord.Color.from_rgb(30, 215, 96)  # Verde Spotify
+        color=discord.Color.from_rgb(*SPOTIFY_GREEN_RGB)
     )
 
     embed.set_thumbnail(url=user.display_avatar.url)
@@ -256,7 +256,7 @@ def create_wrapped_summary_embed(user: discord.Member, stats: Dict[str, Any],
     embed = discord.Embed(
         title=f"🎵 Wrapped {year} - Resumen",
         description=f"**{user.display_name}** en **{guild.name}**",
-        color=discord.Color.from_rgb(30, 215, 96)
+        color=discord.Color.from_rgb(*SPOTIFY_GREEN_RGB)
     )
 
     embed.set_thumbnail(url=user.display_avatar.url)

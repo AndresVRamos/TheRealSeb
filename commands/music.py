@@ -16,7 +16,8 @@ from core.config import (
     TOP_SONGS_LIMIT,
     TOP_USERS_LIMIT,
     USER_TOP_SONGS_LIMIT,
-    HISTORY_LIMIT
+    HISTORY_LIMIT,
+    FUTURE_RESULT_TIMEOUT
 )
 from core.formatters import format_duration, parse_time_string
 from core.playback import (
@@ -254,7 +255,7 @@ class MusicCommands(commands.Cog):
             try:
                 update_coro = self.update_final_embed(guild_id)
                 update_fut = asyncio.run_coroutine_threadsafe(update_coro, self.bot.loop)
-                update_fut.result(timeout=5)  # Esperar máximo 5 segundos
+                update_fut.result(timeout=FUTURE_RESULT_TIMEOUT)  # Esperar máximo N segundos
             except Exception as e:
                 logging.debug(f"Error actualizando embed final: {e}")
 

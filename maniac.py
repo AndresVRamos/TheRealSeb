@@ -10,6 +10,7 @@ import threading
 from dotenv import load_dotenv
 
 from gui.log_window import LogWindow
+from core.config import WRAPPED_ENABLED
 
 
 # Configurar logging
@@ -53,9 +54,10 @@ async def run_bot():
     await bot.load_extension('commands.music')
     logging.info("Cog de música cargado correctamente")
 
-    # Wrapped deshabilitado temporalmente - descomentar para habilitar
-    await bot.load_extension('commands.wrapped')
-    logging.info("Cog de Wrapped cargado correctamente")
+    # Cargar Wrapped si está habilitado en config.py
+    if WRAPPED_ENABLED:
+        await bot.load_extension('commands.wrapped')
+        logging.info("Cog de Wrapped cargado correctamente")
 
     async def shutdown():
         """Función para cerrar el bot limpiamente"""
