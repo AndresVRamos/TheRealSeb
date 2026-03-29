@@ -4,6 +4,7 @@ Usa videos relacionados de YouTube + busqueda como fallback
 """
 import logging
 import asyncio
+import random
 import re
 from typing import Optional, Tuple, Set, List
 
@@ -120,6 +121,7 @@ async def _get_song_from_mix_url(
 ) -> Optional[Tuple[str, str, int]]:
     """
     Extrae una cancion de un mix/playlist URL.
+    Selecciona aleatoriamente entre los videos validos.
     """
     try:
         # Extraer video_id del mix URL para excluirlo
@@ -130,6 +132,9 @@ async def _get_song_from_mix_url(
                 original_id = match.group(1)
 
         videos = await get_mix_playlist_videos(mix_url, original_id, limit=15)
+
+        # Recolectar videos validos
+        valid_videos = []
 
         for video in videos:
             video_url = video.get('url', '')
@@ -155,8 +160,12 @@ async def _get_song_from_mix_url(
             if not _is_valid_music_video(video_title, video_duration):
                 continue
 
-            logging.info(f"Autoplay: Encontrado en mix: {video_title}")
-            return (video_url, video_title, video_duration)
+            valid_videos.append((video_url, video_title, video_duration))
+
+        if valid_videos:
+            selected = random.choice(valid_videos)
+            logging.info(f"Autoplay: Encontrado en mix ({len(valid_videos)} opciones): {selected[1]}")
+            return selected
 
     except Exception as e:
         logging.debug(f"Autoplay: Error extrayendo de mix: {e}")
@@ -172,6 +181,7 @@ async def _get_from_related_videos(
 ) -> Optional[Tuple[str, str, int]]:
     """
     Obtiene una cancion de los videos relacionados de YouTube.
+    Selecciona aleatoriamente entre los videos validos para evitar bucles.
     """
     try:
         logging.info("Autoplay: Extrayendo videos relacionados de YouTube...")
@@ -183,6 +193,9 @@ async def _get_from_related_videos(
             return None
 
         logging.info(f"Autoplay: Procesando {len(related_videos)} videos relacionados")
+
+        # Recolectar todos los videos validos
+        valid_videos = []
 
         for video in related_videos:
             video_url = video.get('url', '')
@@ -216,11 +229,16 @@ async def _get_from_related_videos(
             if not _is_valid_music_video(video_title, video_duration):
                 continue
 
-            logging.info(f"Autoplay: Seleccionado de relacionados: {video_title}")
-            return (video_url, video_title, video_duration)
+            valid_videos.append((video_url, video_title, video_duration))
 
-        logging.info("Autoplay: Ningun video relacionado paso los filtros")
-        return None
+        if not valid_videos:
+            logging.info("Autoplay: Ningun video relacionado paso los filtros")
+            return None
+
+        # Seleccionar aleatoriamente de los videos validos
+        selected = random.choice(valid_videos)
+        logging.info(f"Autoplay: Seleccionado aleatoriamente ({len(valid_videos)} opciones): {selected[1]}")
+        return selected
 
     except Exception as e:
         logging.error(f"Autoplay: Error obteniendo relacionados: {e}")
@@ -235,6 +253,7 @@ async def _search_different_song(
 ) -> Optional[Tuple[str, str, int]]:
     """
     Busca una cancion diferente del mismo contexto.
+    Selecciona aleatoriamente entre los resultados validos.
     """
     queries = [
         f"{context} soundtrack",
@@ -242,6 +261,9 @@ async def _search_different_song(
         f"{context} music",
         context
     ]
+
+    # Recolectar videos validos de todas las queries
+    valid_videos = []
 
     for query in queries:
         logging.info(f"Autoplay: Buscando con query: '{query}'")
@@ -270,8 +292,11 @@ async def _search_different_song(
                 if not _is_valid_music_video(video_title, duration):
                     continue
 
-                logging.info(f"Autoplay: Encontrado en busqueda: {video_title}")
-                return (url, video_title, duration)
+                valid_videos.append((url, video_title, duration))
+
+            # Si encontramos suficientes videos, salir del loop
+            if len(valid_videos) >= 5:
+                break
 
         except asyncio.TimeoutError:
             logging.warning(f"Autoplay: Timeout con query: {query}")
@@ -279,6 +304,11 @@ async def _search_different_song(
         except Exception as e:
             logging.error(f"Autoplay: Error: {e}")
             continue
+
+    if valid_videos:
+        selected = random.choice(valid_videos)
+        logging.info(f"Autoplay: Seleccionado en busqueda ({len(valid_videos)} opciones): {selected[1]}")
+        return selected
 
     logging.info("Autoplay: No se encontro ninguna cancion")
     return None

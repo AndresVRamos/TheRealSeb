@@ -3,6 +3,7 @@ Cog de comandos de música
 """
 import discord
 from discord.ext import commands
+from collections import deque
 import asyncio
 import time
 import logging
@@ -87,7 +88,7 @@ class MusicCommands(commands.Cog):
         self.last_text_channel = {}
         self.active_controls_view = {}  # Vista de controles activa por servidor
         self.autoplay_status = {}  # Estado de autoplay por servidor
-        self.autoplay_history = {}  # Historial de URLs para evitar repeticiones
+        self.autoplay_history = {}  # Historial de URLs (deque) para evitar repeticiones
 
         # Clientes externos
         self.ytdl = create_ytdl()
@@ -427,23 +428,22 @@ class MusicCommands(commands.Cog):
 
         current_song = self.song_data[guild_id]
 
+        # Usar deque para mantener orden FIFO (las más antiguas se eliminan primero)
         if guild_id not in self.autoplay_history:
-            self.autoplay_history[guild_id] = set()
+            self.autoplay_history[guild_id] = deque(maxlen=AUTOPLAY_HISTORY_SIZE)
 
-        if current_song.get('url'):
-            self.autoplay_history[guild_id].add(current_song['url'])
-
-        if len(self.autoplay_history[guild_id]) > AUTOPLAY_HISTORY_SIZE:
-            history_list = list(self.autoplay_history[guild_id])
-            self.autoplay_history[guild_id] = set(history_list[-AUTOPLAY_HISTORY_SIZE:])
+        current_url = current_song.get('url')
+        if current_url and current_url not in self.autoplay_history[guild_id]:
+            self.autoplay_history[guild_id].append(current_url)
 
         await ctx.send("🔄 **Autoplay:** Buscando canción relacionada...")
 
         try:
+            # Convertir deque a set para búsqueda eficiente
             related = await get_related_song(
                 self.ytdl,
                 current_song,
-                self.autoplay_history[guild_id],
+                set(self.autoplay_history[guild_id]),
                 self.sp
             )
 
@@ -451,7 +451,8 @@ class MusicCommands(commands.Cog):
                 url, title, duration = related
                 logging.info(f"Autoplay: Encontrada cancion relacionada: {title}")
 
-                self.autoplay_history[guild_id].add(url)
+                if url not in self.autoplay_history[guild_id]:
+                    self.autoplay_history[guild_id].append(url)
 
                 await ctx.send(f"📻 **Autoplay:** *{title}*")
                 # Usar el requester de la última canción real, no ctx.author
