@@ -91,7 +91,7 @@ def create_now_playing_embed(song_data, queues, loop_status, guild_id, author=No
         status_parts = []
         if loop_status.get(guild_id, False):
             status_parts.append("🔁 Loop")
-        if AUTOPLAY_ENABLED and autoplay_status and autoplay_status.get(guild_id, False):
+        if song_data.get(guild_id, {}).get('is_autoplay', False):
             status_parts.append("📻 Radio")
 
         if status_parts:

@@ -282,7 +282,7 @@ class MusicCommands(commands.Cog):
 
         return _after_play
 
-    async def play_song(self, ctx, url: str, title: str = None, requester=None):
+    async def play_song(self, ctx, url: str, title: str = None, requester=None, is_autoplay=False):
         """Reproduce una canción"""
         try:
             guild_id = ctx.guild.id
@@ -323,7 +323,8 @@ class MusicCommands(commands.Cog):
                 'pause_start_time': 0,
                 'thumbnail': video_info.get('thumbnail'),
                 'requester': actual_requester,
-                'artist': video_info.get('artist')
+                'artist': video_info.get('artist'),
+                'is_autoplay': is_autoplay
             }
 
             await update_presence(self.bot,True, actual_title)
@@ -453,7 +454,9 @@ class MusicCommands(commands.Cog):
                 self.autoplay_history[guild_id].add(url)
 
                 await ctx.send(f"📻 **Autoplay:** *{title}*")
-                await self.play_song(ctx, url, title, ctx.author)
+                # Usar el requester de la última canción real, no ctx.author
+                last_requester = current_song.get('requester', ctx.author)
+                await self.play_song(ctx, url, title, last_requester, is_autoplay=True)
             else:
                 logging.info("Autoplay: No se encontró canción relacionada")
                 await ctx.send("🚫 **Autoplay:** No se encontró canción relacionada.")
