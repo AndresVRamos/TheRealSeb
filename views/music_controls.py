@@ -112,13 +112,14 @@ def create_now_playing_embed(song_data, queues, loop_status, guild_id, author=No
 class MusicControls(discord.ui.View):
     """Vista con botones de control de reproducción"""
 
-    def __init__(self, ctx, message, voice_clients, loop_status, queues, song_data, manual_stop, bot=None, autoplay_status=None):
+    def __init__(self, ctx, message, voice_clients, loop_status, queues, song_data, manual_stop, bot=None, autoplay_status=None, autoplay_in_progress=None):
         super().__init__(timeout=MUSIC_CONTROLS_TIMEOUT)
         self.ctx = ctx
         self.message = message
         self.voice_clients = voice_clients
         self.loop_status = loop_status
         self.autoplay_status = autoplay_status if autoplay_status is not None else {}
+        self.autoplay_in_progress = autoplay_in_progress if autoplay_in_progress is not None else {}
         self.queues = queues
         self.song_data = song_data
         self.manual_stop = manual_stop
@@ -378,6 +379,9 @@ class MusicControls(discord.ui.View):
     @discord.ui.button(label="Stop", emoji="⏹️", style=discord.ButtonStyle.danger, custom_id="stop")
     async def stop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         guild_id = self.guild_id
+
+        # Cancelar autoplay en progreso
+        self.autoplay_in_progress[guild_id] = False
 
         # Cancelar tarea de actualización del embed
         self.cancel_update_loop()

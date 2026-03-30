@@ -89,6 +89,7 @@ class MusicCommands(commands.Cog):
         self.active_controls_view = {}  # Vista de controles activa por servidor
         self.autoplay_status = {}  # Estado de autoplay por servidor
         self.autoplay_history = {}  # Historial de URLs (deque) para evitar repeticiones
+        self.autoplay_in_progress = {}  # Flag para evitar race conditions
 
         # Clientes externos
         self.ytdl = create_ytdl()
@@ -360,7 +361,8 @@ class MusicCommands(commands.Cog):
             view = MusicControls(
                 ctx, None, self.voice_clients, self.loop_status,
                 self.queues, self.song_data, self.manual_stop,
-                bot=self.bot, autoplay_status=self.autoplay_status
+                bot=self.bot, autoplay_status=self.autoplay_status,
+                autoplay_in_progress=self.autoplay_in_progress
             )
 
             message = await ctx.send(embed=embed, view=view)
@@ -372,6 +374,14 @@ class MusicCommands(commands.Cog):
             self.active_controls_view[guild_id] = view
             view.start_update_loop()
 
+        except discord.errors.ClientException as e:
+            if "Already playing audio" in str(e):
+                logging.warning(f"Ya hay audio reproduciéndose, ignorando: {e}")
+                return
+            logging.error(f"Error playing song: {e}")
+            logging.error(f"Exception traceback:", exc_info=True)
+            await ctx.send(f"⚠️ **Error al reproducir la canción:** {e}. Saltando a la siguiente...")
+            await self.play_next(ctx)
         except Exception as e:
             logging.error(f"Error playing song: {e}")
             logging.error(f"Exception traceback:", exc_info=True)
@@ -420,11 +430,19 @@ class MusicCommands(commands.Cog):
 
     async def _handle_autoplay(self, ctx, guild_id: int):
         """Busca y reproduce una cancion relacionada cuando autoplay está activo"""
+        # Evitar múltiples búsquedas de autoplay simultáneas
+        if self.autoplay_in_progress.get(guild_id, False):
+            logging.info("Autoplay: Ya hay una búsqueda en progreso, ignorando")
+            return
+
         if guild_id not in self.song_data:
             logging.info("Autoplay: No hay datos de cancion anterior")
             await ctx.send("🚫 **La queue está vacía y no hay canción anterior para hacerle radio.**")
             await update_presence(self.bot, False)
             return
+
+        # Marcar que autoplay está en progreso
+        self.autoplay_in_progress[guild_id] = True
 
         current_song = self.song_data[guild_id]
 
@@ -447,6 +465,17 @@ class MusicCommands(commands.Cog):
                 self.sp
             )
 
+            # Verificar si fue cancelado durante la búsqueda (usuario puso otra canción)
+            if not self.autoplay_in_progress.get(guild_id, False):
+                logging.info("Autoplay: Cancelado durante la búsqueda")
+                return
+
+            # Verificar si ya hay algo reproduciéndose
+            if guild_id in self.voice_clients and self.voice_clients[guild_id].is_playing():
+                logging.info("Autoplay: Ya hay audio reproduciéndose, cancelando")
+                self.autoplay_in_progress[guild_id] = False
+                return
+
             if related:
                 url, title, duration = related
                 logging.info(f"Autoplay: Encontrada cancion relacionada: {title}")
@@ -457,16 +486,19 @@ class MusicCommands(commands.Cog):
                 await ctx.send(f"📻 **Autoplay:** *{title}*")
                 # Usar el requester de la última canción real, no ctx.author
                 last_requester = current_song.get('requester', ctx.author)
+                self.autoplay_in_progress[guild_id] = False
                 await self.play_song(ctx, url, title, last_requester, is_autoplay=True)
             else:
                 logging.info("Autoplay: No se encontró canción relacionada")
                 await ctx.send("🚫 **Autoplay:** No se encontró canción relacionada.")
                 await update_presence(self.bot, False)
+                self.autoplay_in_progress[guild_id] = False
 
         except Exception as e:
             logging.error(f"Error en autoplay: {e}")
             await ctx.send("⚠️ **Autoplay:** Error al buscar canción relacionada.")
             await update_presence(self.bot, False)
+            self.autoplay_in_progress[guild_id] = False
 
     async def alone_timeout(self, guild_id: int, channel):
         """Espera y desconecta el bot si sigue solo"""
@@ -491,6 +523,9 @@ class MusicCommands(commands.Cog):
                     self.voice_clients[guild_id].stop()
                     if guild_id in self.queues:
                         self.queues[guild_id].clear()
+
+                    # Cancelar autoplay en progreso
+                    self.autoplay_in_progress[guild_id] = False
 
                     await self.voice_clients[guild_id].disconnect()
                     del self.voice_clients[guild_id]
@@ -561,6 +596,11 @@ class MusicCommands(commands.Cog):
         guild_id = ctx.guild.id
         if guild_id not in self.queues:
             self.queues[guild_id] = []
+
+        # Cancelar autoplay en progreso si el usuario pone una canción manualmente
+        if self.autoplay_in_progress.get(guild_id, False):
+            logging.info(f"Cancelando autoplay en progreso para guild {guild_id}")
+            self.autoplay_in_progress[guild_id] = False
 
         if guild_id in self.voice_clients and (
             self.voice_clients[guild_id].is_playing() or
@@ -819,7 +859,8 @@ class MusicCommands(commands.Cog):
         view = MusicControls(
             ctx, None, self.voice_clients, self.loop_status,
             self.queues, self.song_data, self.manual_stop,
-            bot=self.bot, autoplay_status=self.autoplay_status
+            bot=self.bot, autoplay_status=self.autoplay_status,
+            autoplay_in_progress=self.autoplay_in_progress
         )
 
         message = await ctx.send(embed=embed, view=view)
@@ -998,6 +1039,8 @@ class MusicCommands(commands.Cog):
             return
 
         guild_id = ctx.guild.id
+        # Cancelar autoplay en progreso
+        self.autoplay_in_progress[guild_id] = False
         if guild_id in self.active_controls_view:
             self.active_controls_view[guild_id].cancel_update_loop()
         if await stop_playback(guild_id, self.voice_clients, self.queues, self.manual_stop, bot=self.bot):
@@ -1162,6 +1205,11 @@ class MusicCommands(commands.Cog):
 
             # Callback cuando se selecciona un resultado
             async def on_select(ctx, url, title, duration=0):
+                # Cancelar autoplay en progreso
+                if self.autoplay_in_progress.get(guild_id, False):
+                    logging.info(f"Cancelando autoplay en progreso (search) para guild {guild_id}")
+                    self.autoplay_in_progress[guild_id] = False
+
                 is_playing = (guild_id in self.voice_clients and
                               (self.voice_clients[guild_id].is_playing() or
                                self.voice_clients[guild_id].is_paused()))
