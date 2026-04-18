@@ -3,6 +3,8 @@ Cog de comandos de música
 """
 import discord
 from discord.ext import commands
+import os
+import re
 from discord import app_commands
 from collections import deque
 import asyncio
@@ -69,6 +71,7 @@ from core.stats_handler import (
     get_server_top_songs,
     get_user_history
 )
+from core.decorators import command_category
 
 
 class UnifiedContext:
@@ -690,6 +693,7 @@ class MusicCommands(commands.Cog):
     # === COMANDOS ===
 
     @commands.command(name="play", help="Reproduce una canción o playlist desde YouTube o Spotify.")
+    @command_category("playback")
     async def play(self, ctx, *, url: str):
         if not await self.ensure_voice(ctx):
             return
@@ -759,6 +763,7 @@ class MusicCommands(commands.Cog):
             await ctx.send(f"⚠️ **Error al reproducir la canción:** {e}")
 
     @commands.command(name="add", help="Añade una canción o playlist a la queue.")
+    @command_category("playback")
     async def add(self, ctx, *, url: str):
         if not await self.ensure_voice(ctx):
             return
@@ -820,6 +825,7 @@ class MusicCommands(commands.Cog):
             await ctx.send(f"⚠️ **Error al añadir la canción a la queue:** {e}")
 
     @commands.command(name="queue", help="Muestra la queue actual.")
+    @command_category("queue")
     async def show_queue(self, ctx):
         guild_id = ctx.guild.id
 
@@ -861,6 +867,7 @@ class MusicCommands(commands.Cog):
         await ctx.send(embed=initial_embed, view=paginator)
 
     @commands.command(name="playnext", help="Agrega la canción a la siguiente posición en la queue.")
+    @command_category("playback")
     async def playnext(self, ctx, *, url: str):
         if not await self.ensure_voice(ctx):
             return
@@ -939,6 +946,7 @@ class MusicCommands(commands.Cog):
             await ctx.send(f"⚠️ **Error al agregar la canción a la posición siguiente:** {e}")
 
     @commands.command(name="nowplaying", help="Muestra la canción que está sonando ahora mismo.")
+    @command_category("info")
     async def now_playing(self, ctx):
         guild_id = ctx.guild.id
 
@@ -974,9 +982,9 @@ class MusicCommands(commands.Cog):
         view.start_update_loop()
 
     @commands.command(name="lyrics", help="Muestra las letras de la canción actual o de una búsqueda.")
+    @command_category("info")
     async def lyrics(self, ctx, *, query: str = None):
         guild_id = ctx.guild.id
-        import os
 
         # Determinar qué canción buscar y obtener artista si está disponible
         song_artist = None
@@ -1009,7 +1017,6 @@ class MusicCommands(commands.Cog):
 
             # Limpiar letras sincronizadas si es necesario (remover timestamps)
             if lyrics_data.get('synced') and not lyrics_data.get('plain'):
-                import re
                 lyrics_text = re.sub(r'\[\d{2}:\d{2}\.\d{2}\]\s*', '', lyrics_text)
 
             max_length = 4000
@@ -1043,6 +1050,7 @@ class MusicCommands(commands.Cog):
             await search_msg.edit(content=f"⚠️ **Error al buscar letras:** {e}")
 
     @commands.command(name="skip", help="Salta la canción actual.")
+    @command_category("control")
     async def skip(self, ctx):
         if not await self.ensure_voice(ctx):
             return
@@ -1054,6 +1062,7 @@ class MusicCommands(commands.Cog):
             await ctx.send("🚫 **No hay ninguna canción reproduciéndose para saltar!**")
 
     @commands.command(name="skipto", help="Salta a una canción específica en la queue.")
+    @command_category("queue")
     async def skip_to(self, ctx, posicion: int):
         guild_id = ctx.guild.id
 
@@ -1070,6 +1079,7 @@ class MusicCommands(commands.Cog):
         await ctx.send(f"⏩ **Saltando a la canción número {posicion}:** *{cancion[1]}*!")
 
     @commands.command(name="clear", help="Limpia la queue actual.")
+    @command_category("queue")
     async def clear_queue(self, ctx):
         if not await self.ensure_voice(ctx):
             return
@@ -1083,6 +1093,7 @@ class MusicCommands(commands.Cog):
             await ctx.send("🚫 **No hay cola que limpiar!**")
 
     @commands.command(name="pause", help="Pausa la reproducción de la canción actual.")
+    @command_category("control")
     async def pause(self, ctx):
         if not await self.ensure_voice(ctx):
             return
@@ -1094,6 +1105,7 @@ class MusicCommands(commands.Cog):
             await ctx.send("🚫 **No hay nada reproduciéndose para pausar!**")
 
     @commands.command(name="resume", help="Reanuda la reproducción si está pausada.")
+    @command_category("control")
     async def resume(self, ctx):
         if not await self.ensure_voice(ctx):
             return
@@ -1105,6 +1117,7 @@ class MusicCommands(commands.Cog):
             await ctx.send("🚫 **No hay nada pausado para reanudar!**")
 
     @commands.command(name="loop", help="Activa o desactiva el loop de la canción actual.")
+    @command_category("config")
     async def loop_cmd(self, ctx):
         if not await self.ensure_voice(ctx):
             return
@@ -1118,6 +1131,7 @@ class MusicCommands(commands.Cog):
             await ctx.send("🔁 **Loop desactivado!**")
 
     @commands.command(name="autoplay", aliases=["radio"], help="Activa o desactiva el autoplay de canciones relacionadas.")
+    @command_category("config")
     async def autoplay_cmd(self, ctx):
         if not await self.ensure_voice(ctx):
             return
@@ -1135,6 +1149,7 @@ class MusicCommands(commands.Cog):
             await ctx.send("📻 **Autoplay desactivado!**")
 
     @commands.command(name="stop", help="Detiene la reproducción y limpia la queue.")
+    @command_category("control")
     async def stop(self, ctx):
         if not await self.ensure_voice(ctx):
             return
@@ -1150,6 +1165,7 @@ class MusicCommands(commands.Cog):
             await ctx.send("🚫 **No hay ninguna canción sonando!**")
 
     @commands.command(name="shuffle", help="Mezcla aleatoriamente las canciones en la queue.")
+    @command_category("queue")
     async def shuffle(self, ctx):
         guild_id = ctx.guild.id
 
@@ -1159,6 +1175,7 @@ class MusicCommands(commands.Cog):
             await ctx.send("🚫 **La queue está vacía!**")
 
     @commands.command(name="seek", help="Salta a un timestamp específico de la canción (ej: 1m30s, 90s, 2:15)")
+    @command_category("control")
     async def seek(self, ctx, *, timestamp: str):
         if not await self.ensure_voice(ctx):
             return
@@ -1219,6 +1236,7 @@ class MusicCommands(commands.Cog):
             await ctx.send(f"⚠️ **Error al hacer seek:** {e}")
 
     @commands.command(name="move", help="Mueve una canción de una posición a otra en la queue.")
+    @command_category("queue")
     async def move(self, ctx, desde: int, hasta: int):
         guild_id = ctx.guild.id
 
@@ -1240,6 +1258,7 @@ class MusicCommands(commands.Cog):
         await ctx.send(f"🔀 **Movida** *{song[1]}* **de la posición {desde} a la {hasta}.**")
 
     @commands.command(name="remove", help="Remueve una canción de la queue por su posición.")
+    @command_category("queue")
     async def remove(self, ctx, posicion: int):
         guild_id = ctx.guild.id
 
@@ -1256,6 +1275,7 @@ class MusicCommands(commands.Cog):
         await ctx.send(f"🗑️ **Removida** *{song[1]}* **de la posición {posicion}.**")
 
     @commands.command(name="leave", help="Desconecta el bot del canal de voz y borra la queue.")
+    @command_category("config")
     async def leave(self, ctx):
         guild_id = ctx.guild.id
 
@@ -1272,6 +1292,7 @@ class MusicCommands(commands.Cog):
             await ctx.send("🚫 **No estoy conectado a ningún canal de voz.**")
 
     @commands.command(name="search", help="Busca una canción y muestra 5 resultados para elegir.")
+    @command_category("playback")
     async def search(self, ctx, *, query: str):
         if not await self.ensure_voice(ctx):
             return
@@ -1334,6 +1355,7 @@ class MusicCommands(commands.Cog):
     # === STATS ===
 
     @commands.command(name="mystats", help="Muestra tus estadísticas de reproducciones en este servidor.")
+    @command_category("stats")
     async def mystats(self, ctx):
         guild_id = ctx.guild.id
         user_id = ctx.author.id
@@ -1391,6 +1413,7 @@ class MusicCommands(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name="stats", help="Muestra las estadísticas de un usuario específico.")
+    @command_category("stats")
     async def stats(self, ctx, member: discord.Member = None):
         if member is None:
             member = ctx.author
@@ -1451,6 +1474,7 @@ class MusicCommands(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name="topsongs", help="Muestra las canciones más reproducidas en este servidor.")
+    @command_category("stats")
     async def topsongs(self, ctx):
         guild_id = ctx.guild.id
 
@@ -1483,6 +1507,7 @@ class MusicCommands(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name="topusers", help="Muestra los usuarios con más requests en este servidor.")
+    @command_category("stats")
     async def topusers(self, ctx):
         guild_id = ctx.guild.id
 
@@ -1516,6 +1541,7 @@ class MusicCommands(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name="history", help="Muestra tu historial de reproducciones recientes.")
+    @command_category("stats")
     async def history(self, ctx, member: discord.Member = None):
         if member is None:
             member = ctx.author
@@ -1553,6 +1579,7 @@ class MusicCommands(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name="help", help="Muestra una lista de comandos disponibles.")
+    @command_category("info")
     async def show_commands(self, ctx):
         from views.help_menu import HelpMenuView
 
@@ -2510,7 +2537,6 @@ class MusicCommands(commands.Cog):
         await interaction.response.defer()
         ctx = UnifiedContext(interaction)
         guild_id = ctx.guild.id
-        import os
 
         song_artist = None
         if query:
@@ -2533,7 +2559,6 @@ class MusicCommands(commands.Cog):
             lyrics_text = lyrics_data.get('plain') or lyrics_data.get('synced', '')
 
             if lyrics_data.get('synced') and not lyrics_data.get('plain'):
-                import re
                 lyrics_text = re.sub(r'\[\d{2}:\d{2}\.\d{2}\]\s*', '', lyrics_text)
 
             max_length = 4000

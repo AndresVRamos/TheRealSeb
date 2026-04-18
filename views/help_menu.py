@@ -16,11 +16,19 @@ class HelpMenuView(discord.ui.View):
         self.message = None
         self.current_category = None
 
-        # Nombres legibles para los Cogs
-        self.cog_display_names = {
-            "MusicCommands": ("🎵 Música", "Comandos de reproducción y control de música"),
-            "WrappedCommands": ("🎁 Wrapped", "Estadísticas estilo Spotify Wrapped"),
+        # Nombres legibles para las categorías funcionales
+        self.category_display_names = {
+            "playback": ("🎵 Reproducción", "Comandos para reproducir música"),
+            "control": ("⏯️ Control", "Controles de reproducción"),
+            "queue": ("📋 Cola", "Gestión de la cola de reproducción"),
+            "config": ("⚙️ Configuración", "Ajustes del bot"),
+            "stats": ("📊 Estadísticas", "Estadísticas de escucha"),
+            "info": ("ℹ️ Información", "Información y ayuda"),
+            "wrapped": ("🎁 Wrapped", "Estadísticas estilo Spotify Wrapped"),
         }
+
+        # Orden de las categorías en el menú
+        self.category_order = ["playback", "control", "queue", "config", "stats", "info", "wrapped"]
 
         # Construir categorías dinámicamente
         self.categories = self._build_categories()
@@ -29,23 +37,28 @@ class HelpMenuView(discord.ui.View):
         self._create_select()
 
     def _build_categories(self) -> Dict[str, List[commands.Command]]:
-        """Construye las categorías de comandos dinámicamente."""
+        """Construye las categorías de comandos basadas en función."""
         categories = {}
 
         for command in self.bot.commands:
-            # Ignorar aliases
+            # Ignorar aliases y comandos ocultos
             if command.name != command.qualified_name:
                 continue
+            if command.hidden:
+                continue
 
-            cog_name = command.cog.__class__.__name__ if command.cog else "Otros"
+            # Obtener categoría del atributo del comando (definido por @command_category)
+            category = getattr(command.callback, 'category', None)
+            if category is None:
+                continue  # Ignorar comandos sin categoría asignada
 
-            if cog_name not in categories:
-                categories[cog_name] = []
-            categories[cog_name].append(command)
+            if category not in categories:
+                categories[category] = []
+            categories[category].append(command)
 
         # Ordenar comandos alfabéticamente dentro de cada categoría
-        for cog_name in categories:
-            categories[cog_name].sort(key=lambda c: c.name)
+        for category in categories:
+            categories[category].sort(key=lambda c: c.name)
 
         return categories
 
@@ -53,19 +66,24 @@ class HelpMenuView(discord.ui.View):
         """Crea el menú desplegable con las categorías."""
         options = []
 
-        for cog_name, cmds in self.categories.items():
-            display_name, description = self.cog_display_names.get(
-                cog_name,
-                (f"📦 {cog_name}", f"Comandos de {cog_name}")
+        # Seguir el orden definido en category_order
+        for category in self.category_order:
+            if category not in self.categories:
+                continue  # Saltar categorías vacías (ej: wrapped si no está habilitado)
+
+            cmds = self.categories[category]
+            display_name, description = self.category_display_names.get(
+                category,
+                (f"📦 {category}", f"Comandos de {category}")
             )
 
             options.append(discord.SelectOption(
                 label=display_name,
                 description=f"{len(cmds)} comandos",
-                value=cog_name
+                value=category
             ))
 
-        # Agregar opción "Todos"
+        # Agregar opción "Resumen" al inicio
         total_commands = sum(len(cmds) for cmds in self.categories.values())
         options.insert(0, discord.SelectOption(
             label="📋 Resumen",
@@ -109,10 +127,15 @@ class HelpMenuView(discord.ui.View):
             color=discord.Color.blue()
         )
 
-        for cog_name, cmds in self.categories.items():
-            display_name, description = self.cog_display_names.get(
-                cog_name,
-                (f"📦 {cog_name}", f"Comandos de {cog_name}")
+        # Seguir el orden definido
+        for category in self.category_order:
+            if category not in self.categories:
+                continue
+
+            cmds = self.categories[category]
+            display_name, description = self.category_display_names.get(
+                category,
+                (f"📦 {category}", f"Comandos de {category}")
             )
 
             # Mostrar solo los nombres de los comandos
@@ -129,12 +152,12 @@ class HelpMenuView(discord.ui.View):
         embed.set_footer(text="Prefijo: . | Slash: / | Usa el menú para ver detalles")
         return embed
 
-    def _create_category_embed(self, cog_name: str) -> discord.Embed:
+    def _create_category_embed(self, category: str) -> discord.Embed:
         """Crea el embed detallado para una categoría específica."""
-        cmds = self.categories.get(cog_name, [])
-        display_name, description = self.cog_display_names.get(
-            cog_name,
-            (f"📦 {cog_name}", f"Comandos de {cog_name}")
+        cmds = self.categories.get(category, [])
+        display_name, description = self.category_display_names.get(
+            category,
+            (f"📦 {category}", f"Comandos de {category}")
         )
 
         embed = discord.Embed(
@@ -143,32 +166,60 @@ class HelpMenuView(discord.ui.View):
             color=discord.Color.green()
         )
 
-        for cmd in cmds:
-            # Construir firma del comando con parámetros
-            params = []
-            for param_name, param in cmd.clean_params.items():
-                if param.default == param.empty:
-                    params.append(f"<{param_name}>")
-                else:
-                    params.append(f"[{param_name}]")
+        # Discord limita a 25 campos por embed
+        # Si hay más de 24 comandos, agrupar en descripción
+        if len(cmds) > 24:
+            cmd_lines = []
+            for cmd in cmds:
+                params = []
+                for param_name, param in cmd.clean_params.items():
+                    if param.default == param.empty:
+                        params.append(f"<{param_name}>")
+                    else:
+                        params.append(f"[{param_name}]")
 
-            signature = f".{cmd.name}"
-            slash_signature = f"/{cmd.name}"
-            if params:
-                param_str = " " + " ".join(params)
-                signature += param_str
-                slash_signature += param_str
+                signature = f".{cmd.name}"
+                if params:
+                    signature += " " + " ".join(params)
 
-            # Descripción del comando
-            help_text = cmd.help or "Sin descripción"
+                help_text = cmd.help or "Sin descripción"
+                cmd_lines.append(f"`{signature}` - {help_text}")
 
-            embed.add_field(
-                name=f"`{signature}` | `{slash_signature}`",
-                value=help_text,
-                inline=False
-            )
+            # Dividir en chunks para no exceder límite de caracteres
+            chunk_size = 13
+            for i in range(0, len(cmd_lines), chunk_size):
+                chunk = cmd_lines[i:i + chunk_size]
+                field_name = "Comandos" if i == 0 else "​"  # Zero-width space para campos adicionales
+                embed.add_field(
+                    name=field_name,
+                    value="\n".join(chunk),
+                    inline=False
+                )
+        else:
+            for cmd in cmds:
+                params = []
+                for param_name, param in cmd.clean_params.items():
+                    if param.default == param.empty:
+                        params.append(f"<{param_name}>")
+                    else:
+                        params.append(f"[{param_name}]")
 
-        embed.set_footer(text=f"{len(cmds)} comandos en esta categoría")
+                signature = f".{cmd.name}"
+                slash_signature = f"/{cmd.name}"
+                if params:
+                    param_str = " " + " ".join(params)
+                    signature += param_str
+                    slash_signature += param_str
+
+                help_text = cmd.help or "Sin descripción"
+
+                embed.add_field(
+                    name=f"`{signature}` | `{slash_signature}`",
+                    value=help_text,
+                    inline=False
+                )
+
+        embed.set_footer(text=f"{len(cmds)} comandos en esta categoría | Prefijo: . | Slash: /")
         return embed
 
     async def on_timeout(self):
@@ -191,23 +242,35 @@ def create_help_initial_embed(bot: commands.Bot) -> discord.Embed:
         color=discord.Color.blue()
     )
 
-    # Contar comandos por cog
-    cog_counts = {}
+    category_display_names = {
+        "playback": "🎵 Reproducción",
+        "control": "⏯️ Control",
+        "queue": "📋 Cola",
+        "config": "⚙️ Configuración",
+        "stats": "📊 Estadísticas",
+        "info": "ℹ️ Información",
+        "wrapped": "🎁 Wrapped",
+    }
+
+    category_order = ["playback", "control", "queue", "config", "stats", "info", "wrapped"]
+
+    # Contar comandos por categoría funcional (ignorar ocultos)
+    category_counts = {}
     for command in bot.commands:
         if command.name != command.qualified_name:
             continue
-        cog_name = command.cog.__class__.__name__ if command.cog else "Otros"
-        cog_counts[cog_name] = cog_counts.get(cog_name, 0) + 1
-
-    cog_display_names = {
-        "MusicCommands": "🎵 Música",
-        "WrappedCommands": "🎁 Wrapped",
-    }
+        if command.hidden:
+            continue
+        # Leer categoría del atributo del comando
+        category = getattr(command.callback, 'category', None)
+        if category:
+            category_counts[category] = category_counts.get(category, 0) + 1
 
     summary_lines = []
-    for cog_name, count in cog_counts.items():
-        display_name = cog_display_names.get(cog_name, f"📦 {cog_name}")
-        summary_lines.append(f"**{display_name}** - {count} comandos")
+    for category in category_order:
+        if category in category_counts:
+            display_name = category_display_names.get(category, f"📦 {category}")
+            summary_lines.append(f"**{display_name}** - {category_counts[category]} comandos")
 
     embed.add_field(
         name="Categorías",
@@ -215,6 +278,6 @@ def create_help_initial_embed(bot: commands.Bot) -> discord.Embed:
         inline=False
     )
 
-    total = sum(cog_counts.values())
+    total = sum(category_counts.values())
     embed.set_footer(text=f"Total: {total} comandos | El menú expira en 2 minutos")
     return embed

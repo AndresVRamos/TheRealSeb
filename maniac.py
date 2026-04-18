@@ -33,7 +33,7 @@ async def run_bot():
 
     @bot.event
     async def on_ready():
-        print(f'{bot.user} is now jamming')
+        logging.info(f'{bot.user} is now jamming')
         # Sincronizar slash commands
         try:
             if SLASH_COMMANDS_GUILD_ID:
@@ -84,7 +84,7 @@ async def run_bot():
                     ephemeral=True
                 )
 
-    @bot.command(name="sync")
+    @bot.command(name="sync", hidden=True)
     @commands.is_owner()
     async def sync_commands(ctx, scope: str = "guild"):
         """Sincroniza slash commands. Uso: .sync [guild|global]"""
@@ -119,9 +119,9 @@ async def run_bot():
     try:
         await bot.start(TOKEN)
     except KeyboardInterrupt:
-        print("Apagando bot...")
+        logging.info("Apagando bot...")
         await shutdown()
-        print("Bot apagado correctamente.")
+        logging.info("Bot apagado correctamente.")
 
 
 def start_bot():

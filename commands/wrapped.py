@@ -8,10 +8,11 @@ from discord import app_commands
 from datetime import datetime
 from typing import Optional
 
-from core.wrapped import generate_wrapped, create_wrapped_summary_embed
+from core.wrapped import generate_wrapped, create_wrapped_summary_embed, format_time_detailed
 from core.database.queries import get_user_yearly_stats
 from core.config import WRAPPED_MIN_YEAR, WRAPPED_TOP_ARTISTS_LIMIT
 from core.formatters import format_duration
+from core.decorators import command_category
 
 
 class WrappedCommands(commands.Cog):
@@ -21,6 +22,7 @@ class WrappedCommands(commands.Cog):
         self.bot = bot
 
     @commands.command(name="wrapped", help="Muestra tu resumen musical del año.")
+    @command_category("wrapped")
     async def wrapped(self, ctx, member: Optional[discord.Member] = None, year: Optional[int] = None):
         """
         Genera un resumen estilo Wrapped para un usuario.
@@ -71,6 +73,7 @@ class WrappedCommands(commands.Cog):
             await loading_msg.edit(content=f"⚠️ Error al generar el Wrapped: {e}")
 
     @commands.command(name="wrappedsummary", aliases=["ws"], help="Muestra un resumen rápido de tu Wrapped.")
+    @command_category("wrapped")
     async def wrapped_summary(self, ctx, member: Optional[discord.Member] = None, year: Optional[int] = None):
         """
         Genera un resumen rápido de Wrapped.
@@ -102,6 +105,7 @@ class WrappedCommands(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name="topartists", help="Muestra tus artistas más escuchados del año.")
+    @command_category("wrapped")
     async def top_artists(self, ctx, member: Optional[discord.Member] = None, year: Optional[int] = None):
         """
         Muestra los top artistas de un usuario en un año.
@@ -139,7 +143,6 @@ class WrappedCommands(commands.Cog):
         top_artists_text = []
         medals = ["🥇", "🥈", "🥉"] + [f"{i}." for i in range(4, WRAPPED_TOP_ARTISTS_LIMIT + 1)]
         for i, artist in enumerate(stats['top_artists'][:WRAPPED_TOP_ARTISTS_LIMIT]):
-            from core.formatters import format_duration
             time_with_artist = format_duration(artist['total_time'])
             top_artists_text.append(
                 f"{medals[i]} **{artist['name']}**\n"
@@ -156,6 +159,7 @@ class WrappedCommands(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name="listeningtime", aliases=["lt"], help="Muestra cuánto tiempo has escuchado música.")
+    @command_category("wrapped")
     async def listening_time(self, ctx, member: Optional[discord.Member] = None, year: Optional[int] = None):
         """
         Muestra el tiempo total de escucha de un usuario.
@@ -177,8 +181,6 @@ class WrappedCommands(commands.Cog):
             else:
                 await ctx.send(f"🚫 **{member.display_name}** no tiene reproducciones registradas en {year}.")
             return
-
-        from core.wrapped import format_time_detailed
 
         total_time = stats['total_time_seconds']
         hours = total_time // 3600
@@ -220,6 +222,7 @@ class WrappedCommands(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name="streak", help="Muestra tu racha de días escuchando música.")
+    @command_category("wrapped")
     async def streak(self, ctx, member: Optional[discord.Member] = None):
         """
         Muestra la racha de escucha de un usuario.
@@ -425,8 +428,6 @@ class WrappedCommands(commands.Cog):
             else:
                 await interaction.response.send_message(f"🚫 **{member.display_name}** no tiene reproducciones registradas en {year}.")
             return
-
-        from core.wrapped import format_time_detailed
 
         total_time = stats['total_time_seconds']
         hours = total_time // 3600
