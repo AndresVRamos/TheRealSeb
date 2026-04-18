@@ -4,12 +4,14 @@ Proporciona estadísticas con un resumen estilo Wrapped para usuarios
 """
 import discord
 from discord.ext import commands
+from discord import app_commands
 from datetime import datetime
 from typing import Optional
 
 from core.wrapped import generate_wrapped, create_wrapped_summary_embed
 from core.database.queries import get_user_yearly_stats
 from core.config import WRAPPED_MIN_YEAR, WRAPPED_TOP_ARTISTS_LIMIT
+from core.formatters import format_duration
 
 
 class WrappedCommands(commands.Cog):
@@ -282,6 +284,250 @@ class WrappedCommands(commands.Cog):
 
         embed.set_footer(text=ctx.guild.name)
         await ctx.send(embed=embed)
+
+    # ==========================================
+    # SLASH COMMANDS
+    # ==========================================
+
+    @app_commands.command(name="wrapped", description="Muestra tu resumen musical del año")
+    @app_commands.describe(
+        usuario="Usuario del que ver el Wrapped (opcional)",
+        year="Año del Wrapped (opcional, por defecto el actual)"
+    )
+    async def wrapped_slash(
+        self,
+        interaction: discord.Interaction,
+        usuario: Optional[discord.Member] = None,
+        year: Optional[int] = None
+    ):
+        await interaction.response.defer()
+
+        member = usuario if usuario else interaction.user
+        if year is None:
+            year = datetime.now().year
+
+        current_year = datetime.now().year
+        if year < WRAPPED_MIN_YEAR or year > current_year:
+            await interaction.followup.send(f"🚫 El año debe estar entre {WRAPPED_MIN_YEAR} y {current_year}.")
+            return
+
+        try:
+            embed = await generate_wrapped(member, interaction.guild, year)
+
+            if embed is None:
+                if member == interaction.user:
+                    await interaction.followup.send(
+                        f"🚫 No tienes reproducciones registradas en {year}.\n"
+                        f"¡Escucha música con el bot para generar tu Wrapped!"
+                    )
+                else:
+                    await interaction.followup.send(
+                        f"🚫 **{member.display_name}** no tiene reproducciones registradas en {year}."
+                    )
+                return
+
+            await interaction.followup.send(embed=embed)
+
+        except Exception as e:
+            await interaction.followup.send(f"⚠️ Error al generar el Wrapped: {e}")
+
+    @app_commands.command(name="wrappedsummary", description="Muestra un resumen rápido del Wrapped")
+    @app_commands.describe(usuario="Usuario del que ver el resumen (opcional)")
+    async def wrappedsummary_slash(
+        self,
+        interaction: discord.Interaction,
+        usuario: Optional[discord.Member] = None
+    ):
+        member = usuario if usuario else interaction.user
+        year = datetime.now().year
+
+        stats = get_user_yearly_stats(member.id, interaction.guild_id, year)
+
+        if stats is None:
+            if member == interaction.user:
+                await interaction.response.send_message(f"🚫 No tienes reproducciones registradas en {year}.")
+            else:
+                await interaction.response.send_message(f"🚫 **{member.display_name}** no tiene reproducciones registradas en {year}.")
+            return
+
+        embed = create_wrapped_summary_embed(member, stats, interaction.guild)
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="topartists", description="Muestra tus artistas más escuchados del año")
+    @app_commands.describe(
+        usuario="Usuario del que ver los artistas (opcional)",
+        year="Año (opcional, por defecto el actual)"
+    )
+    async def topartists_slash(
+        self,
+        interaction: discord.Interaction,
+        usuario: Optional[discord.Member] = None,
+        year: Optional[int] = None
+    ):
+        member = usuario if usuario else interaction.user
+        if year is None:
+            year = datetime.now().year
+
+        stats = get_user_yearly_stats(member.id, interaction.guild_id, year)
+
+        if stats is None or not stats.get('top_artists'):
+            if member == interaction.user:
+                await interaction.response.send_message(f"🚫 No tienes artistas registrados en {year}.")
+            else:
+                await interaction.response.send_message(f"🚫 **{member.display_name}** no tiene artistas registrados en {year}.")
+            return
+
+        embed = discord.Embed(
+            title=f"🎤 Top Artistas {year}",
+            description=f"**{member.display_name}** en **{interaction.guild.name}**",
+            color=discord.Color.purple()
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+
+        top_artists_text = []
+        medals = ["🥇", "🥈", "🥉"] + [f"{i}." for i in range(4, WRAPPED_TOP_ARTISTS_LIMIT + 1)]
+        for i, artist in enumerate(stats['top_artists'][:WRAPPED_TOP_ARTISTS_LIMIT]):
+            time_with_artist = format_duration(artist['total_time'])
+            top_artists_text.append(
+                f"{medals[i]} **{artist['name']}**\n"
+                f"   └ {artist['play_count']} canciones ({time_with_artist})"
+            )
+
+        embed.add_field(
+            name="Tus artistas favoritos",
+            value="\n".join(top_artists_text),
+            inline=False
+        )
+
+        embed.set_footer(text=f"Wrapped {year} | {interaction.guild.name}")
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="listeningtime", description="Muestra cuánto tiempo has escuchado música")
+    @app_commands.describe(
+        usuario="Usuario del que ver el tiempo (opcional)",
+        year="Año (opcional, por defecto el actual)"
+    )
+    async def listeningtime_slash(
+        self,
+        interaction: discord.Interaction,
+        usuario: Optional[discord.Member] = None,
+        year: Optional[int] = None
+    ):
+        member = usuario if usuario else interaction.user
+        if year is None:
+            year = datetime.now().year
+
+        stats = get_user_yearly_stats(member.id, interaction.guild_id, year)
+
+        if stats is None:
+            if member == interaction.user:
+                await interaction.response.send_message(f"🚫 No tienes reproducciones registradas en {year}.")
+            else:
+                await interaction.response.send_message(f"🚫 **{member.display_name}** no tiene reproducciones registradas en {year}.")
+            return
+
+        from core.wrapped import format_time_detailed
+
+        total_time = stats['total_time_seconds']
+        hours = total_time // 3600
+
+        embed = discord.Embed(
+            title=f"⏱️ Tiempo de Escucha {year}",
+            color=discord.Color.green()
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+
+        comparisons = []
+        if hours >= 24:
+            days = hours / 24
+            comparisons.append(f"🌍 ¡Eso es **{days:.1f} días** de música continua!")
+        if hours >= 2:
+            movies = hours / 2
+            comparisons.append(f"🎬 ¡Podrías ver **{int(movies)} películas** en ese tiempo!")
+        if total_time >= 180:
+            songs = total_time / 210
+            comparisons.append(f"🎵 ¡Aproximadamente **{int(songs)} canciones** promedio!")
+
+        time_text = format_time_detailed(total_time)
+
+        embed.add_field(
+            name=f"**{member.display_name}**",
+            value=f"🎧 **{time_text}**\n🔢 **{stats['total_plays']:,}** reproducciones",
+            inline=False
+        )
+
+        if comparisons:
+            embed.add_field(
+                name="Datos curiosos",
+                value="\n".join(comparisons),
+                inline=False
+            )
+
+        embed.set_footer(text=f"{interaction.guild.name} | {year}")
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="streak", description="Muestra tu racha de días escuchando música")
+    @app_commands.describe(usuario="Usuario del que ver la racha (opcional)")
+    async def streak_slash(
+        self,
+        interaction: discord.Interaction,
+        usuario: Optional[discord.Member] = None
+    ):
+        member = usuario if usuario else interaction.user
+        year = datetime.now().year
+
+        stats = get_user_yearly_stats(member.id, interaction.guild_id, year)
+
+        if stats is None:
+            if member == interaction.user:
+                await interaction.response.send_message("🚫 No tienes reproducciones registradas.")
+            else:
+                await interaction.response.send_message(f"🚫 **{member.display_name}** no tiene reproducciones registradas.")
+            return
+
+        embed = discord.Embed(
+            title="🔥 Racha de Escucha",
+            color=discord.Color.orange()
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+
+        current_streak = stats.get('current_streak', 0)
+        longest_streak = stats.get('longest_streak', 0)
+
+        streak_emoji = "🔥"
+        if current_streak >= 30:
+            streak_emoji = "🌟"
+        elif current_streak >= 7:
+            streak_emoji = "💫"
+        elif current_streak >= 3:
+            streak_emoji = "✨"
+
+        embed.add_field(
+            name=f"**{member.display_name}**",
+            value=f"{streak_emoji} **Racha actual:** {current_streak} días\n"
+                  f"🏆 **Racha más larga:** {longest_streak} días",
+            inline=False
+        )
+
+        if current_streak == 0:
+            message = "Empieza tu racha hoy!"
+        elif current_streak < 3:
+            message = "Sigue construyendo tu racha!"
+        elif current_streak < 7:
+            message = "Bien! Casi una semana!"
+        elif current_streak < 30:
+            message = "WOW! Puedes llegar al mes!"
+        else:
+            message = "Más de un Mes! Verdaderamente eres el GOAT!"
+
+        embed.add_field(
+            name="💬",
+            value=f"*{message}*",
+            inline=False
+        )
+
+        embed.set_footer(text=interaction.guild.name)
+        await interaction.response.send_message(embed=embed)
 
 
 async def setup(bot):

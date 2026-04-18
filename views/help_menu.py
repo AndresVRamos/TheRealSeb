@@ -104,7 +104,8 @@ class HelpMenuView(discord.ui.View):
         """Crea el embed de resumen con todas las categorías."""
         embed = discord.Embed(
             title="📋 Comandos Disponibles",
-            description="Selecciona una categoría del menú para ver los comandos detallados.",
+            description="Selecciona una categoría del menú para ver los comandos detallados.\n\n"
+                        "💡 **Tip:** Todos los comandos también están disponibles como **slash commands** (`/comando`).",
             color=discord.Color.blue()
         )
 
@@ -125,7 +126,7 @@ class HelpMenuView(discord.ui.View):
                 inline=False
             )
 
-        embed.set_footer(text="Usa el menú desplegable para ver detalles de cada categoría")
+        embed.set_footer(text="Prefijo: . | Slash: / | Usa el menú para ver detalles")
         return embed
 
     def _create_category_embed(self, cog_name: str) -> discord.Embed:
@@ -152,14 +153,17 @@ class HelpMenuView(discord.ui.View):
                     params.append(f"[{param_name}]")
 
             signature = f".{cmd.name}"
+            slash_signature = f"/{cmd.name}"
             if params:
-                signature += " " + " ".join(params)
+                param_str = " " + " ".join(params)
+                signature += param_str
+                slash_signature += param_str
 
             # Descripción del comando
             help_text = cmd.help or "Sin descripción"
 
             embed.add_field(
-                name=f"`{signature}`",
+                name=f"`{signature}` | `{slash_signature}`",
                 value=help_text,
                 inline=False
             )

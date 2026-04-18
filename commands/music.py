@@ -3,10 +3,12 @@ Cog de comandos de música
 """
 import discord
 from discord.ext import commands
+from discord import app_commands
 from collections import deque
 import asyncio
 import time
 import logging
+from typing import Union, Optional
 
 from core.config import (
     ALONE_TIMEOUT_SECONDS,
@@ -20,7 +22,8 @@ from core.config import (
     HISTORY_LIMIT,
     FUTURE_RESULT_TIMEOUT,
     AUTOPLAY_ENABLED,
-    AUTOPLAY_HISTORY_SIZE
+    AUTOPLAY_HISTORY_SIZE,
+    SLASH_COMMANDS_GUILD_ID
 )
 from core.formatters import format_duration, parse_time_string
 from core.playback import (
@@ -66,6 +69,51 @@ from core.stats_handler import (
     get_server_top_songs,
     get_user_history
 )
+
+
+class UnifiedContext:
+    """
+    Adaptador que unifica commands.Context e discord.Interaction.
+    Permite reutilizar la lógica entre comandos de prefijo y slash commands.
+    """
+
+    def __init__(self, source: Union[commands.Context, discord.Interaction]):
+        self.source = source
+        self.is_interaction = isinstance(source, discord.Interaction)
+        self._deferred = False
+
+    @property
+    def guild(self) -> discord.Guild:
+        return self.source.guild
+
+    @property
+    def author(self) -> Union[discord.Member, discord.User]:
+        return self.source.user if self.is_interaction else self.source.author
+
+    @property
+    def channel(self) -> discord.abc.Messageable:
+        return self.source.channel
+
+    @property
+    def voice(self):
+        """Retorna el estado de voz del autor"""
+        return self.author.voice
+
+    async def send(self, content: str = None, **kwargs) -> Optional[discord.Message]:
+        """Envía un mensaje, manejando diferencias entre ctx e interaction"""
+        if self.is_interaction:
+            if self.source.response.is_done():
+                return await self.source.followup.send(content, **kwargs)
+            else:
+                await self.source.response.send_message(content, **kwargs)
+                return await self.source.original_response()
+        return await self.source.send(content, **kwargs)
+
+    async def defer(self):
+        """Defer la respuesta (solo para interactions)"""
+        if self.is_interaction and not self.source.response.is_done():
+            await self.source.response.defer()
+            self._deferred = True
 
 
 class MusicCommands(commands.Cog):
@@ -150,6 +198,59 @@ class MusicCommands(commands.Cog):
             await view.message.edit(embed=embed, view=view)
         except Exception as e:
             logging.debug(f"No se pudo actualizar embed final: {e}")
+
+    async def ensure_voice_unified(self, ctx: UnifiedContext) -> bool:
+        """Verifica voz usando UnifiedContext (para slash commands)"""
+        if not ctx.voice or not ctx.voice.channel:
+            await ctx.send("🚫 **Debes estar en un canal de voz para usar este comando.**")
+            return False
+        return await self._ensure_voice_connection(ctx.guild, ctx.voice.channel, ctx)
+
+    async def _ensure_voice_connection(self, guild: discord.Guild, voice_channel, ctx: UnifiedContext) -> bool:
+        """Lógica compartida de conexión a voz"""
+        guild_id = guild.id
+
+        existing_vc = guild.voice_client
+        if existing_vc:
+            if existing_vc.is_connected():
+                self.voice_clients[guild_id] = existing_vc
+                return True
+            else:
+                try:
+                    await existing_vc.disconnect(force=True)
+                except Exception as e:
+                    logging.debug(f"Error desconectando sesión zombie: {e}")
+                if guild_id in self.voice_clients:
+                    del self.voice_clients[guild_id]
+
+        if guild_id in self.voice_clients:
+            try:
+                if not self.voice_clients[guild_id].is_connected():
+                    del self.voice_clients[guild_id]
+            except Exception:
+                del self.voice_clients[guild_id]
+
+        if guild_id not in self.voice_clients:
+            try:
+                voice_client = await voice_channel.connect(timeout=VOICE_CONNECT_TIMEOUT)
+                self.voice_clients[guild_id] = voice_client
+
+                for _ in range(10):
+                    if voice_client.is_connected():
+                        break
+                    await asyncio.sleep(0.2)
+
+                if not voice_client.is_connected():
+                    await ctx.send("⚠️ **La conexión de voz no se pudo estabilizar. Intenta de nuevo.**")
+                    if guild_id in self.voice_clients:
+                        del self.voice_clients[guild_id]
+                    return False
+
+            except Exception as e:
+                logging.error(f"Error al conectar al canal de voz: {e}")
+                await ctx.send(f"⚠️ **Error al conectar al canal de voz:** {e}")
+                return False
+        return True
 
     async def ensure_voice(self, ctx) -> bool:
         """Verifica que el usuario esté en un canal de voz y conecta el bot si es necesario"""
@@ -1456,6 +1557,1025 @@ class MusicCommands(commands.Cog):
         from views.help_menu import HelpMenuView
 
         view = HelpMenuView(ctx, self.bot)
+        embed = view._create_summary_embed()
+
+        message = await ctx.send(embed=embed, view=view)
+        view.message = message
+
+    # ==========================================
+    # SLASH COMMANDS
+    # ==========================================
+
+    async def _play_impl(self, ctx: UnifiedContext, query: str):
+        """Implementación compartida de play"""
+        if not await self.ensure_voice_unified(ctx):
+            return
+
+        guild_id = ctx.guild.id
+        if guild_id not in self.queues:
+            self.queues[guild_id] = []
+
+        # Cancelar autoplay en progreso
+        if self.autoplay_in_progress.get(guild_id, False):
+            self.autoplay_in_progress[guild_id] = False
+
+        # Si ya está reproduciendo, añadir a la queue
+        if guild_id in self.voice_clients and (
+            self.voice_clients[guild_id].is_playing() or
+            self.voice_clients[guild_id].is_paused()
+        ):
+            await self._add_impl(ctx, query)
+            return
+
+        try:
+            url = query
+            if is_spotify_url(query):
+                if is_spotify_playlist(query):
+                    await ctx.send("🔍 **Procesando playlist de Spotify...** Esto puede tardar un momento.")
+                    songs = await fetch_spotify_playlist_tracks(self.sp, query)
+                    if not songs:
+                        await ctx.send("🚫 **La playlist de Spotify está vacía o no se pudo procesar.**")
+                        return
+                    first_song_url, first_title, _ = songs[0]
+                    songs_with_requester = [(song[0], song[1], ctx.author, song[2]) for song in songs[1:]]
+                    self.queues[guild_id].extend(songs_with_requester)
+                    await self._play_song_unified(ctx, first_song_url, first_title, ctx.author)
+                    await ctx.send(f"➕ **Añadida la playlist a la queue:** {len(songs)} canciones")
+                    return
+
+                elif is_spotify_track(query):
+                    yt_link, _ = await get_youtube_url_from_spotify_track(self.sp, query)
+                    if not yt_link:
+                        await ctx.send("⚠️ **Error al obtener el enlace de YouTube desde Spotify.**")
+                        return
+                    url = yt_link
+
+            if is_playlist_url(url):
+                songs = await fetch_playlist_songs(self.ytdl, url)
+                if not songs:
+                    await ctx.send("🚫 **La playlist de YouTube está vacía.**")
+                    return
+                first_song_url, first_title, _ = songs[0]
+                songs_with_requester = [(song[0], song[1], ctx.author, song[2]) for song in songs[1:]]
+                self.queues[guild_id].extend(songs_with_requester)
+                await ctx.send(f"➕ **Añadida la playlist a la queue:** {len(songs)} canciones")
+                await self._play_song_unified(ctx, first_song_url, first_title, ctx.author)
+            else:
+                if not is_youtube_url(url):
+                    url = await search_youtube(url)
+                    if not url:
+                        await ctx.send("⚠️ **No se encontró ningún resultado en YouTube.**")
+                        return
+                else:
+                    url = clean_video_url(url)
+
+                await self._play_song_unified(ctx, url)
+
+        except Exception as e:
+            logging.error(f"Error en _play_impl: {e}")
+            await ctx.send(f"⚠️ **Error al reproducir la canción:** {e}")
+
+    async def _play_song_unified(self, ctx: UnifiedContext, url: str, title: str = None, requester=None):
+        """Reproduce una canción usando UnifiedContext"""
+        try:
+            guild_id = ctx.guild.id
+
+            if guild_id not in self.voice_clients or not self.voice_clients[guild_id].is_connected():
+                if not await self.ensure_voice_unified(ctx):
+                    return
+
+            video_info = await extract_video_info(self.ytdl, url)
+            if not video_info:
+                raise Exception("No se pudo obtener el URL del stream")
+
+            stream_url = video_info['stream_url']
+            actual_title = title if title else video_info['title']
+            actual_requester = requester if requester else ctx.author
+
+            self.manual_stop[guild_id] = False
+            self.current_song[guild_id] = actual_title
+            self.current_song_url[guild_id] = url
+
+            self.song_data[guild_id] = {
+                'title': actual_title,
+                'url': url,
+                'duration': video_info['duration'],
+                'start_time': time.time(),
+                'paused_time': 0,
+                'pause_start_time': 0,
+                'thumbnail': video_info.get('thumbnail'),
+                'requester': actual_requester,
+                'artist': video_info.get('artist'),
+                'is_autoplay': False
+            }
+
+            await update_presence(self.bot, True, actual_title)
+
+            player = discord.FFmpegOpusAudio(stream_url, **self.ffmpeg_options)
+
+            if guild_id not in self.voice_clients or not self.voice_clients[guild_id].is_connected():
+                if not await self.ensure_voice_unified(ctx):
+                    return
+
+            # Crear un fake ctx para after_play (necesita ctx.guild)
+            class FakeCtx:
+                def __init__(self, guild, channel, send_func, author):
+                    self.guild = guild
+                    self.channel = channel
+                    self._send = send_func
+                    self.author = author
+
+                async def send(self, *args, **kwargs):
+                    return await self._send(*args, **kwargs)
+
+            fake_ctx = FakeCtx(ctx.guild, ctx.channel, ctx.send, getattr(ctx, "author", None))
+
+            self.voice_clients[guild_id].play(player, after=self.after_play(fake_ctx))
+            await asyncio.sleep(0.5)
+
+            await self.disable_previous_controls(guild_id)
+
+            embed = create_now_playing_embed(
+                self.song_data, self.queues, self.loop_status,
+                guild_id, ctx.author, autoplay_status=self.autoplay_status
+            )
+
+            view = MusicControls(
+                fake_ctx, None, self.voice_clients, self.loop_status,
+                self.queues, self.song_data, self.manual_stop,
+                bot=self.bot, autoplay_status=self.autoplay_status,
+                autoplay_in_progress=self.autoplay_in_progress
+            )
+
+            message = await ctx.send(embed=embed, view=view)
+            view.message = message
+            view.update_button_states()
+            if message:
+                await message.edit(view=view)
+
+            self.active_controls_view[guild_id] = view
+            view.start_update_loop()
+
+        except Exception as e:
+            logging.error(f"Error en _play_song_unified: {e}")
+            await ctx.send(f"⚠️ **Error al reproducir la canción:** {e}")
+
+    async def _add_impl(self, ctx: UnifiedContext, query: str):
+        """Implementación compartida de add"""
+        guild_id = ctx.guild.id
+        if guild_id not in self.queues:
+            self.queues[guild_id] = []
+
+        try:
+            if is_spotify_url(query):
+                if is_spotify_playlist(query):
+                    await ctx.send("🔍 **Procesando playlist de Spotify...**")
+                    songs = await fetch_spotify_playlist_tracks(self.sp, query)
+                    if not songs:
+                        await ctx.send("🚫 **La playlist de Spotify está vacía.**")
+                        return
+                    songs_with_requester = [(song[0], song[1], ctx.author, song[2]) for song in songs]
+                    self.queues[guild_id].extend(songs_with_requester)
+                    await ctx.send(f"➕ **Añadida la playlist a la queue:** {len(songs)} canciones")
+                    return
+                else:
+                    yt_link, title = await get_youtube_url_from_spotify_track(self.sp, query)
+                    if not yt_link:
+                        await ctx.send("⚠️ **Error al obtener el enlace de YouTube desde Spotify.**")
+                        return
+                    video_info = await extract_video_info(self.ytdl, yt_link)
+                    duration = video_info.get('duration', 0) if video_info else 0
+                    self.queues[guild_id].append((yt_link, title, ctx.author, duration))
+                    await ctx.send(f"➕ **Añadida a la queue:** *{title}*")
+                    return
+
+            if is_playlist_url(query):
+                songs = await fetch_playlist_songs(self.ytdl, query)
+                if not songs:
+                    await ctx.send("🚫 **La playlist de YouTube está vacía.**")
+                    return
+                songs_with_requester = [(song[0], song[1], ctx.author, song[2]) for song in songs]
+                self.queues[guild_id].extend(songs_with_requester)
+                await ctx.send(f"➕ **Añadida la playlist a la queue:** {len(songs)} canciones")
+            else:
+                url = query
+                if not is_youtube_url(query):
+                    url = await search_youtube(query)
+                    if not url:
+                        await ctx.send("⚠️ **No se encontró ningún resultado en YouTube.**")
+                        return
+
+                video_info = await extract_video_info(self.ytdl, url)
+                title = video_info['title']
+                duration = video_info.get('duration', 0)
+                self.queues[guild_id].append((url, title, ctx.author, duration))
+                await ctx.send(f"➕ **Añadida a la queue:** *{title}*")
+
+        except Exception as e:
+            logging.error(f"Error en _add_impl: {e}")
+            await ctx.send(f"⚠️ **Error al añadir la canción:** {e}")
+
+    @app_commands.command(name="play", description="Reproduce una canción o playlist desde YouTube o Spotify")
+    @app_commands.describe(query="URL de YouTube/Spotify o nombre de la canción a buscar")
+    async def play_slash(self, interaction: discord.Interaction, query: str):
+        await interaction.response.defer()
+        ctx = UnifiedContext(interaction)
+        await self._play_impl(ctx, query)
+
+    @app_commands.command(name="pause", description="Pausa la reproducción actual")
+    async def pause_slash(self, interaction: discord.Interaction):
+        ctx = UnifiedContext(interaction)
+        if not await self.ensure_voice_unified(ctx):
+            return
+
+        guild_id = ctx.guild.id
+        if await pause_playback(guild_id, self.song_data, self.voice_clients):
+            await ctx.send("⏸️ **Reproducción pausada!**")
+        else:
+            await ctx.send("🚫 **No hay nada reproduciéndose para pausar!**")
+
+    @app_commands.command(name="resume", description="Reanuda la reproducción pausada")
+    async def resume_slash(self, interaction: discord.Interaction):
+        ctx = UnifiedContext(interaction)
+        if not await self.ensure_voice_unified(ctx):
+            return
+
+        guild_id = ctx.guild.id
+        if await resume_playback(guild_id, self.song_data, self.voice_clients):
+            await ctx.send("▶️ **Reproducción reanudada!**")
+        else:
+            await ctx.send("🚫 **No hay nada pausado para reanudar!**")
+
+    @app_commands.command(name="skip", description="Salta a la siguiente canción")
+    async def skip_slash(self, interaction: discord.Interaction):
+        ctx = UnifiedContext(interaction)
+        if not await self.ensure_voice_unified(ctx):
+            return
+
+        guild_id = ctx.guild.id
+        if await skip_song(guild_id, self.voice_clients):
+            await ctx.send("⏭️ **Canción saltada!**")
+        else:
+            await ctx.send("🚫 **No hay ninguna canción reproduciéndose para saltar!**")
+
+    @app_commands.command(name="queue", description="Muestra la cola de reproducción actual")
+    async def queue_slash(self, interaction: discord.Interaction):
+        ctx = UnifiedContext(interaction)
+        guild_id = ctx.guild.id
+
+        if guild_id not in self.queues or not self.queues[guild_id]:
+            await ctx.send("🚫 **La queue está vacía!**")
+            return
+
+        items_per_page = QUEUE_ITEMS_PER_PAGE
+        total_songs = len(self.queues[guild_id])
+        pages = [self.queues[guild_id][i:i + items_per_page]
+                 for i in range(0, len(self.queues[guild_id]), items_per_page)]
+
+        current_song_remaining = 0
+        if guild_id in self.song_data and guild_id in self.voice_clients:
+            if self.voice_clients[guild_id].is_playing() or self.voice_clients[guild_id].is_paused():
+                data = self.song_data[guild_id]
+                elapsed_time = (time.time() - data['start_time']) - data['paused_time']
+                if data['pause_start_time'] > 0:
+                    elapsed_time -= (time.time() - data['pause_start_time'])
+                current_song_remaining = max(0, data['duration'] - elapsed_time)
+
+        total_duration = sum(
+            song[3] if len(song) > 3 and song[3] else 0
+            for song in self.queues[guild_id]
+        )
+
+        # Crear fake ctx para el paginador
+        class FakeCtx:
+            def __init__(self, author, guild):
+                self.author = author
+                self.guild = guild
+
+        fake_ctx = FakeCtx(ctx.author, ctx.guild)
+
+        paginator = QueuePaginator(
+            fake_ctx, pages, total_songs, items_per_page,
+            current_song_remaining=current_song_remaining,
+            total_duration=total_duration
+        )
+        paginator.children[0].disabled = True
+        if len(pages) <= 1:
+            paginator.children[1].disabled = True
+
+        initial_embed = paginator.create_embed()
+        await ctx.send(embed=initial_embed, view=paginator)
+
+    @app_commands.command(name="nowplaying", description="Muestra la canción que está sonando ahora")
+    async def nowplaying_slash(self, interaction: discord.Interaction):
+        ctx = UnifiedContext(interaction)
+        guild_id = ctx.guild.id
+
+        if (guild_id not in self.song_data or
+            guild_id not in self.voice_clients or
+            not (self.voice_clients[guild_id].is_playing() or
+                 self.voice_clients[guild_id].is_paused())):
+            await ctx.send("🚫 **No hay ninguna canción sonando ahora mismo!**")
+            return
+
+        await self.disable_previous_controls(guild_id)
+
+        embed = create_now_playing_embed(
+            self.song_data, self.queues, self.loop_status,
+            guild_id, ctx.author, autoplay_status=self.autoplay_status
+        )
+
+        class FakeCtx:
+            def __init__(self, guild, channel, send_func, author):
+                self.guild = guild
+                self.channel = channel
+                self._send = send_func
+                self.author = author
+
+            async def send(self, *args, **kwargs):
+                return await self._send(*args, **kwargs)
+
+        fake_ctx = FakeCtx(ctx.guild, ctx.channel, ctx.send, getattr(ctx, "author", None))
+
+        view = MusicControls(
+            fake_ctx, None, self.voice_clients, self.loop_status,
+            self.queues, self.song_data, self.manual_stop,
+            bot=self.bot, autoplay_status=self.autoplay_status,
+            autoplay_in_progress=self.autoplay_in_progress
+        )
+
+        message = await ctx.send(embed=embed, view=view)
+        view.message = message
+        view.update_button_states()
+        if message:
+            await message.edit(view=view)
+
+        self.active_controls_view[guild_id] = view
+        view.start_update_loop()
+
+    @app_commands.command(name="add", description="Añade una canción o playlist a la cola")
+    @app_commands.describe(query="URL de YouTube/Spotify o nombre de la canción")
+    async def add_slash(self, interaction: discord.Interaction, query: str):
+        await interaction.response.defer()
+        ctx = UnifiedContext(interaction)
+        if not await self.ensure_voice_unified(ctx):
+            return
+        await self._add_impl(ctx, query)
+
+    @app_commands.command(name="playnext", description="Añade una canción como la siguiente en la cola")
+    @app_commands.describe(query="URL de YouTube/Spotify o nombre de la canción")
+    async def playnext_slash(self, interaction: discord.Interaction, query: str):
+        await interaction.response.defer()
+        ctx = UnifiedContext(interaction)
+        if not await self.ensure_voice_unified(ctx):
+            return
+
+        guild_id = ctx.guild.id
+        if guild_id not in self.queues:
+            self.queues[guild_id] = []
+
+        is_playing = (guild_id in self.voice_clients and
+                      (self.voice_clients[guild_id].is_playing() or
+                       self.voice_clients[guild_id].is_paused()))
+
+        try:
+            url = query
+            if is_spotify_url(query):
+                if is_spotify_playlist(query):
+                    songs = await fetch_spotify_playlist_tracks(self.sp, query)
+                    if not songs:
+                        await ctx.send("🚫 **La playlist de Spotify está vacía.**")
+                        return
+                    if not is_playing:
+                        first_song_url, first_title, _ = songs[0]
+                        songs_with_requester = [(song[0], song[1], ctx.author, song[2]) for song in songs[1:]]
+                        self.queues[guild_id].extend(songs_with_requester)
+                        await self._play_song_unified(ctx, first_song_url, first_title, ctx.author)
+                        await ctx.send(f"➕ **Añadida la playlist a la queue:** {len(songs)} canciones")
+                    else:
+                        for song in reversed(songs):
+                            self.queues[guild_id].insert(0, (song[0], song[1], ctx.author, song[2]))
+                        await ctx.send(f"➕ **Añadida la playlist a la posición siguiente:** {len(songs)} canciones")
+                    return
+                else:
+                    yt_link, title = await get_youtube_url_from_spotify_track(self.sp, query)
+                    if not yt_link:
+                        await ctx.send("⚠️ **Error al obtener el enlace de YouTube desde Spotify.**")
+                        return
+                    url = yt_link
+
+            if is_playlist_url(url):
+                songs = await fetch_playlist_songs(self.ytdl, url)
+                if not songs:
+                    await ctx.send("🚫 **La playlist de YouTube está vacía.**")
+                    return
+                if not is_playing:
+                    first_song_url, first_title, _ = songs[0]
+                    songs_with_requester = [(song[0], song[1], ctx.author, song[2]) for song in songs[1:]]
+                    self.queues[guild_id].extend(songs_with_requester)
+                    await ctx.send(f"➕ **Añadida la playlist a la queue:** {len(songs)} canciones")
+                    await self._play_song_unified(ctx, first_song_url, first_title, ctx.author)
+                else:
+                    for song in reversed(songs):
+                        self.queues[guild_id].insert(0, (song[0], song[1], ctx.author, song[2]))
+                    await ctx.send(f"➕ **Añadida la playlist a la posición siguiente:** {len(songs)} canciones")
+            else:
+                if not is_youtube_url(url):
+                    url = await search_youtube(url)
+                    if not url:
+                        await ctx.send("⚠️ **No se encontró ningún resultado en YouTube.**")
+                        return
+
+                video_info = await extract_video_info(self.ytdl, url)
+                title = video_info['title']
+                duration = video_info.get('duration', 0)
+
+                if not is_playing:
+                    await self._play_song_unified(ctx, url, title, ctx.author)
+                else:
+                    self.queues[guild_id].insert(0, (url, title, ctx.author, duration))
+                    await ctx.send(f"➕ ***{title}*** **ha sido añadida como la siguiente canción!**")
+
+        except Exception as e:
+            logging.error(f"Error en playnext_slash: {e}")
+            await ctx.send(f"⚠️ **Error al agregar la canción:** {e}")
+
+    @app_commands.command(name="search", description="Busca una canción y muestra 5 resultados para elegir")
+    @app_commands.describe(query="Nombre de la canción a buscar")
+    async def search_slash(self, interaction: discord.Interaction, query: str):
+        await interaction.response.defer()
+        ctx = UnifiedContext(interaction)
+        if not await self.ensure_voice_unified(ctx):
+            return
+
+        guild_id = ctx.guild.id
+        if guild_id not in self.queues:
+            self.queues[guild_id] = []
+
+        try:
+            urls = await search_youtube_multiple(query, max_results=SEARCH_MAX_RESULTS)
+
+            if not urls:
+                await ctx.send("⚠️ **No se encontraron resultados en YouTube.**")
+                return
+
+            results = []
+            for url in urls:
+                try:
+                    video_info = await extract_video_info(self.ytdl, url)
+                    if video_info:
+                        results.append((url, video_info['title'], video_info.get('duration', 0)))
+                except Exception as e:
+                    logging.debug(f"Error obteniendo info de {url}: {e}")
+                    continue
+
+            if not results:
+                await ctx.send("⚠️ **No se pudieron obtener los resultados.**")
+                return
+
+            # Crear fake ctx para el callback
+            class FakeCtx:
+                def __init__(self, author, guild, channel, send_func, voice):
+                    self.author = author
+                    self.guild = guild
+                    self.channel = channel
+                    self._send = send_func
+                    self.voice = voice
+
+                async def send(self, *args, **kwargs):
+                    return await self._send(*args, **kwargs)
+
+            fake_ctx = FakeCtx(ctx.author, ctx.guild, ctx.channel, ctx.send, ctx.voice)
+
+            async def on_select(fake_ctx, url, title, duration=0):
+                if self.autoplay_in_progress.get(guild_id, False):
+                    self.autoplay_in_progress[guild_id] = False
+
+                is_playing = (guild_id in self.voice_clients and
+                              (self.voice_clients[guild_id].is_playing() or
+                               self.voice_clients[guild_id].is_paused()))
+
+                if is_playing:
+                    self.queues[guild_id].append((url, title, fake_ctx.author, duration))
+                    await fake_ctx.send(f"➕ **Añadida a la queue:** *{title}*")
+                else:
+                    unified_ctx = UnifiedContext.__new__(UnifiedContext)
+                    unified_ctx.source = None
+                    unified_ctx.is_interaction = False
+                    unified_ctx._deferred = False
+                    unified_ctx.guild = fake_ctx.guild
+                    unified_ctx.author = fake_ctx.author
+                    unified_ctx.channel = fake_ctx.channel
+                    unified_ctx.voice = fake_ctx.voice
+                    unified_ctx.send = fake_ctx.send
+                    await self._play_song_unified(unified_ctx, url, title, fake_ctx.author)
+
+            embed = create_search_embed(query, results)
+            view = SearchResultsView(fake_ctx, results, on_select)
+
+            message = await ctx.send(embed=embed, view=view)
+            view.message = message
+
+        except Exception as e:
+            logging.error(f"Error en search_slash: {e}")
+            await ctx.send(f"⚠️ **Error en la búsqueda:** {e}")
+
+    @app_commands.command(name="stop", description="Detiene la reproducción y limpia la cola")
+    async def stop_slash(self, interaction: discord.Interaction):
+        ctx = UnifiedContext(interaction)
+        if not await self.ensure_voice_unified(ctx):
+            return
+
+        guild_id = ctx.guild.id
+        self.autoplay_in_progress[guild_id] = False
+        if guild_id in self.active_controls_view:
+            self.active_controls_view[guild_id].cancel_update_loop()
+        if await stop_playback(guild_id, self.voice_clients, self.queues, self.manual_stop, bot=self.bot):
+            await ctx.send("⏹️ **Reproducción detenida!**")
+        else:
+            await ctx.send("🚫 **No hay ninguna canción sonando!**")
+
+    @app_commands.command(name="leave", description="Desconecta el bot del canal de voz")
+    async def leave_slash(self, interaction: discord.Interaction):
+        ctx = UnifiedContext(interaction)
+        guild_id = ctx.guild.id
+
+        if guild_id in self.voice_clients:
+            if guild_id in self.active_controls_view:
+                self.active_controls_view[guild_id].cancel_update_loop()
+            await self.voice_clients[guild_id].disconnect()
+            del self.voice_clients[guild_id]
+            if guild_id in self.queues:
+                self.queues[guild_id].clear()
+            await update_presence(self.bot, False)
+            await ctx.send("👋 **Me he desconectado del canal de voz y la queue ha sido borrada.**")
+        else:
+            await ctx.send("🚫 **No estoy conectado a ningún canal de voz.**")
+
+    @app_commands.command(name="loop", description="Activa o desactiva la repetición de la canción actual")
+    async def loop_slash(self, interaction: discord.Interaction):
+        ctx = UnifiedContext(interaction)
+        if not await self.ensure_voice_unified(ctx):
+            return
+
+        guild_id = ctx.guild.id
+        is_looping = toggle_loop(guild_id, self.loop_status)
+
+        if is_looping:
+            await ctx.send("🔁 **Loop activado!**")
+        else:
+            await ctx.send("🔁 **Loop desactivado!**")
+
+    @app_commands.command(name="autoplay", description="Activa o desactiva el autoplay de canciones relacionadas")
+    async def autoplay_slash(self, interaction: discord.Interaction):
+        ctx = UnifiedContext(interaction)
+        if not await self.ensure_voice_unified(ctx):
+            return
+
+        if not AUTOPLAY_ENABLED:
+            await ctx.send("🚫 **El autoplay está deshabilitado en la configuración del bot.**")
+            return
+
+        guild_id = ctx.guild.id
+        is_autoplay = toggle_autoplay(guild_id, self.autoplay_status)
+
+        if is_autoplay:
+            await ctx.send("📻 **Autoplay activado!** Cuando la queue termine, se reproducirán canciones parecidas.")
+        else:
+            await ctx.send("📻 **Autoplay desactivado!**")
+
+    # Autocomplete para posiciones en la queue
+    async def queue_position_autocomplete(
+        self,
+        interaction: discord.Interaction,
+        current: str,
+    ) -> list[app_commands.Choice[int]]:
+        """Autocomplete para posiciones de la queue"""
+        guild_id = interaction.guild_id
+        if guild_id not in self.queues or not self.queues[guild_id]:
+            return []
+
+        choices = []
+        for i, song in enumerate(self.queues[guild_id][:25], 1):
+            title = song[1][:70] if len(song[1]) > 70 else song[1]
+            if not current or current.lower() in title.lower() or current == str(i):
+                choices.append(app_commands.Choice(name=f"{i}. {title}", value=i))
+
+        return choices[:25]
+
+    @app_commands.command(name="skipto", description="Salta a una canción específica en la cola")
+    @app_commands.describe(posicion="Posición de la canción en la cola")
+    @app_commands.autocomplete(posicion=queue_position_autocomplete)
+    async def skipto_slash(self, interaction: discord.Interaction, posicion: int):
+        ctx = UnifiedContext(interaction)
+        guild_id = ctx.guild.id
+
+        if guild_id not in self.queues or not (1 <= posicion <= len(self.queues[guild_id])):
+            await ctx.send("🚫 **Posición inválida en la queue.**")
+            return
+
+        if guild_id in self.voice_clients and self.voice_clients[guild_id].is_playing():
+            self.voice_clients[guild_id].stop()
+
+        cancion = self.queues[guild_id].pop(posicion - 1)
+        self.queues[guild_id].insert(0, cancion)
+
+        await ctx.send(f"⏩ **Saltando a la canción número {posicion}:** *{cancion[1]}*!")
+
+    @app_commands.command(name="seek", description="Salta a un momento específico de la canción")
+    @app_commands.describe(tiempo="Formato: 1m30s, 90s, 2:15, 1:02:30")
+    async def seek_slash(self, interaction: discord.Interaction, tiempo: str):
+        await interaction.response.defer()
+        ctx = UnifiedContext(interaction)
+        if not await self.ensure_voice_unified(ctx):
+            return
+
+        guild_id = ctx.guild.id
+
+        if guild_id not in self.voice_clients or not self.voice_clients[guild_id].is_connected():
+            await ctx.send("🚫 **No estoy conectado a un canal de voz.**")
+            return
+
+        if not self.voice_clients[guild_id].is_playing() and not self.voice_clients[guild_id].is_paused():
+            await ctx.send("🚫 **No hay ninguna canción reproduciéndose.**")
+            return
+
+        if guild_id not in self.song_data:
+            await ctx.send("🚫 **No hay información de la canción actual.**")
+            return
+
+        seek_seconds = parse_time_string(tiempo)
+        if seek_seconds is None:
+            await ctx.send("⚠️ **Formato de tiempo inválido.** Usa formatos como: 1m30s, 90s, 2:15, 1:02:30")
+            return
+
+        song_duration = self.song_data[guild_id]['duration']
+        if seek_seconds >= song_duration:
+            formatted_duration = format_duration(song_duration)
+            await ctx.send(f"⚠️ **El tiempo especificado ({format_duration(seek_seconds)}) excede la duración de la canción ({formatted_duration}).**")
+            return
+
+        try:
+            current_url = self.song_data[guild_id]['url']
+            current_title = self.song_data[guild_id]['title']
+
+            self.seek_in_progress[guild_id] = True
+            self.voice_clients[guild_id].stop()
+
+            self.song_data[guild_id]['start_time'] = time.time() - seek_seconds
+            self.song_data[guild_id]['paused_time'] = 0
+            self.song_data[guild_id]['pause_start_time'] = 0
+
+            video_info = await extract_video_info(self.ytdl, current_url)
+            stream_url = video_info['stream_url']
+
+            seek_ffmpeg_options = {
+                'before_options': f'-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -ss {seek_seconds}',
+                'options': f'-vn -filter:a "volume={PLAYBACK_VOLUME}"'
+            }
+
+            player = discord.FFmpegOpusAudio(stream_url, **seek_ffmpeg_options)
+
+            class FakeCtx:
+                def __init__(self, guild, channel, send_func, author):
+                    self.guild = guild
+                    self.channel = channel
+                    self._send = send_func
+                    self.author = author
+
+                async def send(self, *args, **kwargs):
+                    return await self._send(*args, **kwargs)
+
+            fake_ctx = FakeCtx(ctx.guild, ctx.channel, ctx.send, getattr(ctx, "author", None))
+            self.voice_clients[guild_id].play(player, after=self.after_play(fake_ctx))
+
+            seek_time_str = format_duration(seek_seconds)
+            await ctx.send(f"⏩ **Saltando a {seek_time_str} en:** *{current_title}*")
+
+        except Exception as e:
+            self.seek_in_progress[guild_id] = False
+            logging.error(f"Error en seek_slash: {e}")
+            await ctx.send(f"⚠️ **Error al hacer seek:** {e}")
+
+    @app_commands.command(name="move", description="Mueve una canción de una posición a otra")
+    @app_commands.describe(desde="Posición actual de la canción", hasta="Nueva posición")
+    @app_commands.autocomplete(desde=queue_position_autocomplete)
+    async def move_slash(self, interaction: discord.Interaction, desde: int, hasta: int):
+        ctx = UnifiedContext(interaction)
+        guild_id = ctx.guild.id
+
+        if guild_id not in self.queues or not self.queues[guild_id]:
+            await ctx.send("🚫 **La queue está vacía!**")
+            return
+
+        queue_len = len(self.queues[guild_id])
+        if not (1 <= desde <= queue_len and 1 <= hasta <= queue_len):
+            await ctx.send(f"🚫 **Las posiciones deben estar dentro del rango de la queue (1 a {queue_len}).**")
+            return
+
+        if desde == hasta:
+            await ctx.send("ℹ️ **La canción ya está en esa posición.**")
+            return
+
+        song = self.queues[guild_id].pop(desde - 1)
+        self.queues[guild_id].insert(hasta - 1, song)
+        await ctx.send(f"🔀 **Movida** *{song[1]}* **de la posición {desde} a la {hasta}.**")
+
+    @app_commands.command(name="remove", description="Elimina una canción de la cola")
+    @app_commands.describe(posicion="Posición de la canción a eliminar")
+    @app_commands.autocomplete(posicion=queue_position_autocomplete)
+    async def remove_slash(self, interaction: discord.Interaction, posicion: int):
+        ctx = UnifiedContext(interaction)
+        guild_id = ctx.guild.id
+
+        if guild_id not in self.queues or not self.queues[guild_id]:
+            await ctx.send("🚫 **La queue está vacía!**")
+            return
+
+        queue_len = len(self.queues[guild_id])
+        if not (1 <= posicion <= queue_len):
+            await ctx.send(f"🚫 **La posición debe estar dentro del rango de la queue (1 a {queue_len}).**")
+            return
+
+        song = self.queues[guild_id].pop(posicion - 1)
+        await ctx.send(f"🗑️ **Removida** *{song[1]}* **de la posición {posicion}.**")
+
+    @app_commands.command(name="clear", description="Limpia toda la cola de reproducción")
+    async def clear_slash(self, interaction: discord.Interaction):
+        ctx = UnifiedContext(interaction)
+        if not await self.ensure_voice_unified(ctx):
+            return
+
+        guild_id = ctx.guild.id
+        if guild_id in self.queues:
+            self.queues[guild_id].clear()
+            await ctx.send("🧹 **Se limpió la cola de canciones!**")
+        else:
+            await ctx.send("🚫 **No hay cola que limpiar!**")
+
+    @app_commands.command(name="shuffle", description="Mezcla aleatoriamente la cola")
+    async def shuffle_slash(self, interaction: discord.Interaction):
+        ctx = UnifiedContext(interaction)
+        guild_id = ctx.guild.id
+
+        if await shuffle_queue(guild_id, self.queues):
+            await ctx.send("🔀 **Queue mezclada!**")
+        else:
+            await ctx.send("🚫 **La queue está vacía!**")
+
+    @app_commands.command(name="mystats", description="Muestra tus estadísticas de reproducciones")
+    async def mystats_slash(self, interaction: discord.Interaction):
+        ctx = UnifiedContext(interaction)
+        guild_id = ctx.guild.id
+        user_id = ctx.author.id
+
+        stats = get_user_stats(user_id, guild_id)
+
+        if stats['total_listened'] == 0:
+            await ctx.send("🚫 **No tienes reproducciones registradas en este servidor.**")
+            return
+
+        top_songs = get_user_top_songs(user_id, guild_id, limit=USER_TOP_SONGS_LIMIT)
+
+        embed = discord.Embed(
+            title=f"📊 Estadísticas de {ctx.author.display_name}",
+            color=discord.Color.gold()
+        )
+        embed.set_thumbnail(url=ctx.author.display_avatar.url)
+
+        embed.add_field(name="🎵 Canciones pedidas", value=str(stats['total_requested']), inline=True)
+        embed.add_field(name="🎧 Canciones escuchadas", value=str(stats['total_listened']), inline=True)
+        embed.add_field(name="⏱️ Tiempo total escuchado", value=format_duration(stats['total_time']), inline=True)
+
+        if stats['first_play']:
+            embed.add_field(name="📅 Primera reproducción", value=stats['first_play'][:10], inline=True)
+
+        if top_songs:
+            top_songs_text = "\n".join([
+                f"**{i+1}.** {song[0]} ({song[2]} reproducciones)"
+                for i, song in enumerate(top_songs)
+            ])
+            embed.add_field(name="🏆 Tus Top 5 canciones pedidas", value=top_songs_text, inline=False)
+
+        embed.set_footer(text=f"Servidor: {ctx.guild.name}")
+        await ctx.send(embed=embed)
+
+    @app_commands.command(name="stats", description="Muestra las estadísticas de un usuario")
+    @app_commands.describe(usuario="Usuario del que ver las estadísticas (opcional)")
+    async def stats_slash(self, interaction: discord.Interaction, usuario: discord.Member = None):
+        ctx = UnifiedContext(interaction)
+        member = usuario if usuario else ctx.author
+
+        guild_id = ctx.guild.id
+        user_id = member.id
+
+        stats = get_user_stats(user_id, guild_id)
+
+        if stats['total_listened'] == 0:
+            await ctx.send(f"🚫 **{member.display_name} no tiene reproducciones registradas en este servidor.**")
+            return
+
+        top_songs = get_user_top_songs(user_id, guild_id, limit=USER_TOP_SONGS_LIMIT)
+
+        embed = discord.Embed(
+            title=f"📊 Estadísticas de {member.display_name}",
+            color=discord.Color.gold()
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+
+        embed.add_field(name="🎵 Canciones pedidas", value=str(stats['total_requested']), inline=True)
+        embed.add_field(name="🎧 Canciones escuchadas", value=str(stats['total_listened']), inline=True)
+        embed.add_field(name="⏱️ Tiempo total escuchado", value=format_duration(stats['total_time']), inline=True)
+
+        if stats['first_play']:
+            embed.add_field(name="📅 Primera reproducción", value=stats['first_play'][:10], inline=True)
+
+        if top_songs:
+            top_songs_text = "\n".join([
+                f"**{i+1}.** {song[0]} ({song[2]} reproducciones)"
+                for i, song in enumerate(top_songs)
+            ])
+            embed.add_field(name="🏆 Top 5 canciones pedidas", value=top_songs_text, inline=False)
+
+        embed.set_footer(text=f"Servidor: {ctx.guild.name}")
+        await ctx.send(embed=embed)
+
+    @app_commands.command(name="history", description="Muestra el historial de reproducciones recientes")
+    @app_commands.describe(usuario="Usuario del que ver el historial (opcional)")
+    async def history_slash(self, interaction: discord.Interaction, usuario: discord.Member = None):
+        ctx = UnifiedContext(interaction)
+        member = usuario if usuario else ctx.author
+
+        guild_id = ctx.guild.id
+        user_id = member.id
+
+        history = get_user_history(user_id, guild_id, limit=HISTORY_LIMIT)
+
+        if not history:
+            if member == ctx.author:
+                await ctx.send("🚫 **No tienes historial de reproducciones en este servidor.**")
+            else:
+                await ctx.send(f"🚫 **{member.display_name} no tiene historial de reproducciones en este servidor.**")
+            return
+
+        embed = discord.Embed(
+            title=f"📜 Historial de {member.display_name}",
+            color=discord.Color.blue()
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+
+        history_text = []
+        for i, (song_title, artist, played_at) in enumerate(history):
+            date_str = played_at[:16].replace("T", " ") if "T" in played_at else played_at[:16]
+            song_info = f"**{i+1}.** {song_title}"
+            if artist:
+                song_info += f" - *{artist}*"
+            song_info += f"\n   └ {date_str}"
+            history_text.append(song_info)
+
+        embed.description = "\n".join(history_text)
+        embed.set_footer(text=f"Últimas {HISTORY_LIMIT} reproducciones en {ctx.guild.name}")
+        await ctx.send(embed=embed)
+
+    @app_commands.command(name="topsongs", description="Muestra las canciones más reproducidas del servidor")
+    async def topsongs_slash(self, interaction: discord.Interaction):
+        ctx = UnifiedContext(interaction)
+        guild_id = ctx.guild.id
+
+        top_songs = get_server_top_songs(guild_id, limit=TOP_SONGS_LIMIT)
+
+        if not top_songs:
+            await ctx.send("🚫 **No hay reproducciones registradas en este servidor.**")
+            return
+
+        embed = discord.Embed(
+            title=f"🎵 Top {TOP_SONGS_LIMIT} Canciones - {ctx.guild.name}",
+            color=discord.Color.purple()
+        )
+
+        songs_text = []
+        for i, song in enumerate(top_songs):
+            medal = ""
+            if i == 0:
+                medal = "🥇 "
+            elif i == 1:
+                medal = "🥈 "
+            elif i == 2:
+                medal = "🥉 "
+
+            artist_text = f" - *{song[1]}*" if song[1] else ""
+            songs_text.append(f"{medal}**{i+1}.** {song[0]}{artist_text} ({song[2]} reproducciones)")
+
+        embed.description = "\n".join(songs_text)
+        embed.set_thumbnail(url=ctx.guild.icon.url if ctx.guild.icon else None)
+        await ctx.send(embed=embed)
+
+    @app_commands.command(name="topusers", description="Muestra los usuarios con más reproducciones")
+    async def topusers_slash(self, interaction: discord.Interaction):
+        ctx = UnifiedContext(interaction)
+        guild_id = ctx.guild.id
+
+        top_users = get_server_top_users(guild_id, limit=TOP_USERS_LIMIT)
+
+        if not top_users:
+            await ctx.send("🚫 **No hay reproducciones registradas en este servidor.**")
+            return
+
+        embed = discord.Embed(
+            title=f"👑 Top {TOP_USERS_LIMIT} Usuarios - {ctx.guild.name}",
+            color=discord.Color.orange()
+        )
+
+        users_text = []
+        for i, user_data in enumerate(top_users):
+            user_id, user_name, play_count, total_time = user_data
+            medal = ""
+            if i == 0:
+                medal = "🥇 "
+            elif i == 1:
+                medal = "🥈 "
+            elif i == 2:
+                medal = "🥉 "
+
+            time_str = format_duration(total_time)
+            users_text.append(f"{medal}**{i+1}.** {user_name} - {play_count} requests ({time_str})")
+
+        embed.description = "\n".join(users_text)
+        embed.set_thumbnail(url=ctx.guild.icon.url if ctx.guild.icon else None)
+        await ctx.send(embed=embed)
+
+    @app_commands.command(name="lyrics", description="Muestra las letras de una canción")
+    @app_commands.describe(query="Nombre de la canción (deja vacío para la canción actual)")
+    async def lyrics_slash(self, interaction: discord.Interaction, query: str = None):
+        await interaction.response.defer()
+        ctx = UnifiedContext(interaction)
+        guild_id = ctx.guild.id
+        import os
+
+        song_artist = None
+        if query:
+            song_title = query
+        elif guild_id in self.song_data:
+            song_title = self.song_data[guild_id]['title']
+            song_artist = self.song_data[guild_id].get('artist')
+        else:
+            await ctx.send("🚫 **No hay ninguna canción sonando y no especificaste qué buscar.**")
+            return
+
+        try:
+            genius_api_key = os.getenv('GENIUS_API_KEY')
+            lyrics_data = await get_lyrics(song_title, genius_api_key, song_artist)
+
+            if not lyrics_data:
+                await ctx.send(f"🚫 **No se encontraron letras para:** *{song_title}*")
+                return
+
+            lyrics_text = lyrics_data.get('plain') or lyrics_data.get('synced', '')
+
+            if lyrics_data.get('synced') and not lyrics_data.get('plain'):
+                import re
+                lyrics_text = re.sub(r'\[\d{2}:\d{2}\.\d{2}\]\s*', '', lyrics_text)
+
+            max_length = 4000
+            if len(lyrics_text) > max_length:
+                lyrics_text = lyrics_text[:max_length]
+                last_newline = lyrics_text.rfind('\n')
+                if last_newline > max_length - 500:
+                    lyrics_text = lyrics_text[:last_newline]
+                lyrics_text += "\n\n*[Letras truncadas...]*"
+
+            embed = discord.Embed(
+                title=f"📝 {lyrics_data.get('title', song_title)}",
+                description=lyrics_text,
+                color=discord.Color.purple()
+            )
+
+            if lyrics_data.get('artist'):
+                embed.set_author(name=lyrics_data['artist'])
+
+            footer_text = f"Fuente: {lyrics_data.get('source', 'Desconocida')}"
+            if lyrics_data.get('synced'):
+                footer_text += " | Letras sincronizadas disponibles"
+            embed.set_footer(text=footer_text)
+
+            await ctx.send(embed=embed)
+
+        except Exception as e:
+            logging.error(f"Error obteniendo letras: {e}")
+            await ctx.send(f"⚠️ **Error al buscar letras:** {e}")
+
+    @app_commands.command(name="help", description="Muestra la lista de comandos disponibles")
+    async def help_slash(self, interaction: discord.Interaction):
+        ctx = UnifiedContext(interaction)
+        from views.help_menu import HelpMenuView
+
+        class FakeCtx:
+            def __init__(self, author, guild):
+                self.author = author
+                self.guild = guild
+
+        fake_ctx = FakeCtx(ctx.author, ctx.guild)
+        view = HelpMenuView(fake_ctx, self.bot)
         embed = view._create_summary_embed()
 
         message = await ctx.send(embed=embed, view=view)

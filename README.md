@@ -14,6 +14,7 @@ Bot de música para Discord con soporte para YouTube y Spotify, controles avanza
 - 🖥️ GUI con system tray para logs
 - ⏱️ Auto-desconexión cuando está solo 5+ minutos
 - 🎯 Comandos de posicionamiento (skipto, playnext, move, remove)
+- 🚀 Soporte completo para **Slash Commands** de Discord (`/comando`)
 
 ## 📦 Instalación
 
@@ -44,6 +45,8 @@ python maniac.py
 ```
 
 ## 🎮 Comandos
+
+> **Nota:** Todos los comandos están disponibles tanto con el prefijo `.` como a través de **Slash Commands** de Discord (`/comando`).
 
 | Comando | Descripción |
 |---------|-------------|

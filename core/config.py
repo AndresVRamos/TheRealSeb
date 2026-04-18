@@ -103,3 +103,8 @@ SPOTIFY_GREEN_RGB = (30, 215, 96)
 # === OTROS TIMEOUTS ===
 # Timeout para esperar resultados de futures (segundos)
 FUTURE_RESULT_TIMEOUT = 5
+
+# === SLASH COMMANDS ===
+# ID del servidor para sync de desarrollo (instantáneo)
+# Cambiar a None para sync global (tarda hasta 1 hora)
+SLASH_COMMANDS_GUILD_ID = 519947742999740452  # Ej: 123456789012345678
