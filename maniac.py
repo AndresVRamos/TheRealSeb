@@ -11,7 +11,7 @@ import threading
 from dotenv import load_dotenv
 
 from gui.log_window import LogWindow
-from core.config import WRAPPED_ENABLED, SLASH_COMMANDS_GUILD_ID
+from core.config import WRAPPED_ENABLED, SLASH_COMMANDS_GUILD_ID, MAX_RECONNECT_DELAY
 
 
 # Configurar logging
@@ -29,7 +29,13 @@ async def run_bot():
     intents = discord.Intents.default()
     intents.message_content = True
 
-    bot = commands.Bot(command_prefix=".", intents=intents, case_insensitive=True, help_command=None)
+    bot = commands.Bot(
+        command_prefix=".",
+        intents=intents,
+        case_insensitive=True,
+        help_command=None,
+        max_reconnect_delay=MAX_RECONNECT_DELAY
+    )
 
     @bot.event
     async def on_ready():
@@ -46,6 +52,16 @@ async def run_bot():
                 logging.info(f"Sincronizados {len(synced)} slash commands globalmente")
         except Exception as e:
             logging.error(f"Error sincronizando slash commands: {e}")
+
+    @bot.event
+    async def on_disconnect():
+        """Log cuando el bot se desconecta de Discord"""
+        logging.warning("Bot desconectado de Discord. Reintentando conexión...")
+
+    @bot.event
+    async def on_resumed():
+        """Log cuando el bot reanuda la conexión"""
+        logging.info("Conexión con Discord reanudada exitosamente.")
 
     @bot.event
     async def on_command_error(ctx, error):

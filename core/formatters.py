@@ -1,7 +1,10 @@
 """
-Funciones helper para formateo de tiempo y barras de progreso
+Funciones helper para formateo de tiempo, barras de progreso y utilidades de Discord
 """
 import re
+import logging
+
+import discord
 
 from core.config import PROGRESS_BAR_LENGTH, PROGRESS_BAR_FILLED, PROGRESS_BAR_EMPTY
 
@@ -74,3 +77,33 @@ def create_progress_bar(current, total, bar_length=PROGRESS_BAR_LENGTH):
         return PROGRESS_BAR_EMPTY * bar_length
     progress = int((current / total) * bar_length)
     return PROGRESS_BAR_FILLED * progress + PROGRESS_BAR_EMPTY * (bar_length - progress)
+
+
+async def safe_edit_message(message: discord.Message, **kwargs) -> discord.Message:
+    """
+    Edita un mensaje de Discord, con fallback si el token de interacción expiró.
+
+    Cuando un mensaje fue creado por una interacción (slash command), el token
+    expira después de 15 minutos. Este helper detecta ese error y recupera el
+    mensaje vía fetch_message para editarlo usando el token del bot.
+
+    Args:
+        message: El mensaje a editar
+        **kwargs: Argumentos para message.edit() (embed, view, content, etc.)
+
+    Returns:
+        El mensaje editado (puede ser el original o uno nuevo si hubo fallback)
+
+    Raises:
+        discord.errors.HTTPException: Si el error no es de token expirado
+    """
+    try:
+        await message.edit(**kwargs)
+        return message
+    except discord.errors.HTTPException as e:
+        if e.code == 50027 or e.status == 401:
+            logging.debug("Token de interacción expirado, recuperando mensaje vía fetch_message...")
+            msg = await message.channel.fetch_message(message.id)
+            await msg.edit(**kwargs)
+            return msg
+        raise

@@ -104,6 +104,11 @@ SPOTIFY_GREEN_RGB = (30, 215, 96)
 # Timeout para esperar resultados de futures (segundos)
 FUTURE_RESULT_TIMEOUT = 5
 
+# === RECONEXIÓN ===
+# Tiempo máximo entre intentos de reconexión (segundos)
+# El bot usa backoff exponencial (1s, 2s, 6s, 24s...) hasta este máximo
+MAX_RECONNECT_DELAY = 60.0
+
 # === SLASH COMMANDS ===
 # ID del servidor para sync de desarrollo (instantáneo)
 # Cambiar a None para sync global (tarda hasta 1 hora)

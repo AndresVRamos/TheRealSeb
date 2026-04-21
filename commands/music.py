@@ -27,7 +27,7 @@ from core.config import (
     AUTOPLAY_HISTORY_SIZE,
     SLASH_COMMANDS_GUILD_ID
 )
-from core.formatters import format_duration, parse_time_string
+from core.formatters import format_duration, parse_time_string, safe_edit_message
 from core.playback import (
     pause_playback,
     resume_playback,
@@ -105,11 +105,22 @@ class UnifiedContext:
     async def send(self, content: str = None, **kwargs) -> Optional[discord.Message]:
         """Envía un mensaje, manejando diferencias entre ctx e interaction"""
         if self.is_interaction:
-            if self.source.response.is_done():
-                return await self.source.followup.send(content, **kwargs)
-            else:
-                await self.source.response.send_message(content, **kwargs)
-                return await self.source.original_response()
+            try:
+                if self.source.response.is_done():
+                    return await self.source.followup.send(content, **kwargs)
+                else:
+                    await self.source.response.send_message(content, **kwargs)
+                    return await self.source.original_response()
+            except discord.errors.HTTPException as e:
+                # Token de interacción expirado o interacción inválida
+                if e.code == 50027 or e.status == 401:
+                    logging.debug(f"Interacción expirada (código {e.code}), usando channel.send como fallback.")
+                    try:
+                        return await self.source.channel.send(content, **kwargs)
+                    except Exception as send_error:
+                        logging.error(f"Error crítico: Fallback de send también falló: {send_error}")
+                        return None
+                raise
         return await self.source.send(content, **kwargs)
 
     async def defer(self):
@@ -164,7 +175,7 @@ class MusicCommands(commands.Cog):
                 for item in old_view.children:
                     item.disabled = True
                 if old_view.message:
-                    await old_view.message.edit(view=old_view)
+                    await safe_edit_message(old_view.message, view=old_view)
             except Exception as e:
                 logging.debug(f"No se pudo deshabilitar controles anteriores: {e}")
             del self.active_controls_view[guild_id]
@@ -198,7 +209,7 @@ class MusicCommands(commands.Cog):
             for item in view.children:
                 item.disabled = True
 
-            await view.message.edit(embed=embed, view=view)
+            await safe_edit_message(view.message, embed=embed, view=view)
         except Exception as e:
             logging.debug(f"No se pudo actualizar embed final: {e}")
 

@@ -7,7 +7,7 @@ import logging
 import asyncio
 
 from core.config import MUSIC_CONTROLS_TIMEOUT, NOWPLAYING_UPDATE_INTERVAL, AUTOPLAY_ENABLED
-from core.formatters import format_duration, create_progress_bar
+from core.formatters import format_duration, create_progress_bar, safe_edit_message
 from core.playback import (
     pause_playback,
     resume_playback,
@@ -193,7 +193,7 @@ class MusicControls(discord.ui.View):
                         self.guild_id, self.ctx.author, autoplay_status=self.autoplay_status
                     )
                     self.update_button_states()
-                    await self.message.edit(embed=embed, view=self)
+                    self.message = await safe_edit_message(self.message, embed=embed, view=self)
                 except Exception as e:
                     logging.debug(f"Error actualizando embed: {e}")
                     break
