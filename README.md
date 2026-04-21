@@ -149,7 +149,7 @@ El sistema Wrapped asigna una "personalidad musical" basada en tus hábitos de e
 | **Explorer** | >80% de tus canciones son únicas (poca repetición) |
 | **Loyalist** | <30% variedad (repites mucho las mismas canciones) |
 | **Night Owl** | Tu hora favorita es entre 6 PM - 4 AM (Noche/Madrugada) |
-| **Early Bird** | Tu hora favorita es entre 5 AM - 9 AM |
+| **Early Bird** | Tu hora favorita es entre 5 AM - 11 AM (Mañana) |
 | **Specialist** | Escuchas menos de 5 artistas diferentes |
 | **Music Enthusiast** | Más de 100 reproducciones en el año |
 | **Casual Listener** | No cumple ningún criterio especial |

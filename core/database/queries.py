@@ -932,10 +932,10 @@ def _calculate_listening_personality(unique_tracks: int, unique_artists: int,
         and is_hour_significant
     )
 
-    # Comprobación de madrugador (5:00 - 9:00)
+    # Comprobación de madrugador (5:00 - 11:00)
     is_early_bird = (
         favorite_hour is not None
-        and 5 <= favorite_hour <= 9
+        and 5 <= favorite_hour <= 11
         and is_hour_significant
     )
 
