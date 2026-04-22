@@ -1,0 +1,309 @@
+/**
+ * Base CSS - Estilos y variables compartidas
+ * Usado por todas las vistas del log server
+ */
+
+:root {
+    /* Colores - Modo Claro */
+    --bg-primary: #f5f5f7;
+    --bg-secondary: #ffffff;
+    --card-bg: #ffffff;
+    --border: rgba(0, 0, 0, 0.1);
+    --text-primary: #1d1d1f;
+    --text-secondary: #86868b;
+    --text-tertiary: #6e6e73;
+    --accent: #007aff;
+    --accent-hover: #0051d5;
+    --error: #ff3b30;
+    --warning: #ff9500;
+    --success: #34c759;
+    --info: #007aff;
+    --divider: rgba(0, 0, 0, 0.1);
+    --shadow-color: rgba(0, 0, 0, 0.08);
+    --blur-bg: rgba(245, 245, 247, 0.5);
+
+    /* Espaciado & Diseño */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 12px;
+    --shadow-sm: 0 2px 6px var(--shadow-color);
+    --shadow-md: 0 2px 8px var(--shadow-color);
+    --shadow-lg: 0 4px 12px var(--shadow-color);
+
+    /* Tipografía */
+    --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
+    --font-mono: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg-primary: #000000;
+        --bg-secondary: #1c1c1e;
+        --card-bg: #1c1c1e;
+        --border: rgba(255, 255, 255, 0.12);
+        --text-primary: #f5f5f7;
+        --text-secondary: #98989d;
+        --text-tertiary: #86868b;
+        --accent: #0a84ff;
+        --accent-hover: #409cff;
+        --error: #ff453a;
+        --warning: #ff9f0a;
+        --success: #32d74b;
+        --info: #64d2ff;
+        --divider: rgba(255, 255, 255, 0.12);
+        --shadow-color: rgba(0, 0, 0, 0.4);
+        --blur-bg: rgba(0, 0, 0, 0.5);
+    }
+}
+
+/* Reset & Base */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
+    overflow: hidden;
+    font-family: var(--font-sans);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Layout Principal */
+.app-container {
+    display: flex;
+    flex-direction: row;
+    height: 100vh;
+    width: 100%;
+}
+
+/* Sidebar */
+.sidebar {
+    width: 220px;
+    min-width: 220px;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--divider);
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem 1rem;
+}
+
+.sidebar-header {
+    margin-bottom: 2rem;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem;
+}
+
+.brand-icon {
+    font-size: 1.5rem;
+    line-height: 1;
+}
+
+.brand-name {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.nav-links {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0.875rem;
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: all 0.15s ease;
+    font-weight: 500;
+}
+
+.nav-link:hover {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.nav-link.active {
+    background: var(--accent);
+    color: #ffffff;
+}
+
+.nav-link.active:hover {
+    background: var(--accent-hover);
+}
+
+.nav-icon {
+    font-size: 1.125rem;
+    line-height: 1;
+}
+
+.nav-label {
+    font-size: 0.9375rem;
+}
+
+.scroll-viewport {
+    flex: 1;
+    overflow-y: auto;
+    position: relative;
+    scroll-behavior: smooth;
+}
+
+/* Header con Glassmorphism */
+.glass-header {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    background: var(--blur-bg);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 1px solid var(--divider);
+    width: 100%;
+}
+
+.header-main {
+    padding: 1.5rem 2.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+}
+
+.header-controls {
+    padding: 0.75rem 2.5rem 1rem;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+/* Tipografía Compartida */
+h1 {
+    font-size: 1.75rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    letter-spacing: -0.02em;
+}
+
+/* Botones Compartidos */
+.btn {
+    padding: 0.625rem 1.25rem;
+    border: none;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    font-family: inherit;
+    transition: all 0.2s ease;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-lg);
+    filter: brightness(1.05);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+.btn.primary {
+    background: var(--accent);
+    color: white;
+}
+
+.btn.danger {
+    background: var(--error);
+    color: white;
+}
+
+.btn.success {
+    background: var(--success);
+    color: white;
+}
+
+/* Cards Compartidos */
+.card {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    padding: 1.5rem;
+}
+
+/* Scrollbar Personalizada */
+.scroll-viewport::-webkit-scrollbar {
+    width: 10px;
+}
+
+.scroll-viewport::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.scroll-viewport::-webkit-scrollbar-thumb {
+    background: var(--text-tertiary);
+    border-radius: var(--radius-md);
+    border: 2px solid var(--bg-primary);
+}
+
+.scroll-viewport::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
+}
+
+/* Loading State */
+.loading {
+    padding: 4rem;
+    text-align: center;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+/* Utilidades */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 768px) {
+    .sidebar {
+        display: none;
+    }
+
+    .header-main,
+    .header-controls {
+        padding-inline: 1rem;
+    }
+
+    h1 {
+        font-size: 1.5rem;
+    }
+}

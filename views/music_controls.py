@@ -112,7 +112,7 @@ def create_now_playing_embed(song_data, queues, loop_status, guild_id, author=No
 class MusicControls(discord.ui.View):
     """Vista con botones de control de reproducción"""
 
-    def __init__(self, ctx, message, voice_clients, loop_status, queues, song_data, manual_stop, bot=None, autoplay_status=None, autoplay_in_progress=None):
+    def __init__(self, ctx, message, voice_clients, loop_status, queues, song_data, manual_stop, bot=None, autoplay_status=None, autoplay_in_progress=None, seek_in_progress=None):
         super().__init__(timeout=MUSIC_CONTROLS_TIMEOUT)
         self.ctx = ctx
         self.message = message
@@ -120,6 +120,7 @@ class MusicControls(discord.ui.View):
         self.loop_status = loop_status
         self.autoplay_status = autoplay_status if autoplay_status is not None else {}
         self.autoplay_in_progress = autoplay_in_progress if autoplay_in_progress is not None else {}
+        self.seek_in_progress = seek_in_progress if seek_in_progress is not None else {}
         self.queues = queues
         self.song_data = song_data
         self.manual_stop = manual_stop
@@ -214,6 +215,10 @@ class MusicControls(discord.ui.View):
         """Actualizar estados de botones según el estado actual de reproducción"""
         guild_id = self.guild_id
 
+        # No deshabilitar botones si está en proceso de seek
+        if self.seek_in_progress.get(guild_id, False):
+            return
+
         if (guild_id not in self.voice_clients or
                 not self.voice_clients[guild_id].is_connected()):
             for item in self.children:
@@ -244,6 +249,7 @@ class MusicControls(discord.ui.View):
         # Loop
         loop_btn = self._get_button("loop")
         if loop_btn:
+            loop_btn.disabled = False
             if self.loop_status.get(guild_id, False):
                 loop_btn.style = discord.ButtonStyle.success
                 loop_btn.label = "Loop: ON"
@@ -254,6 +260,7 @@ class MusicControls(discord.ui.View):
         # Autoplay/Radio (solo si existe el botón)
         autoplay_btn = self._get_button("autoplay")
         if autoplay_btn:
+            autoplay_btn.disabled = False
             if self.autoplay_status.get(guild_id, False):
                 autoplay_btn.style = discord.ButtonStyle.success
                 autoplay_btn.label = "Radio: ON"

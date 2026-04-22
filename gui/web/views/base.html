@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="{% block description %}Dashboard de monitoreo para The Real Seb{% endblock %}">
+    <title>{% block title %}The Real Seb{% endblock %} - Dashboard</title>
+
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎵</text></svg>">
+
+    <!-- CSS Base -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+
+    <!-- CSS Específico de cada vista -->
+    {% block styles %}{% endblock %}
+</head>
+<body>
+    <div class="app-container">
+        <!-- Navegación lateral -->
+        <nav class="sidebar" role="navigation" aria-label="Navegación principal">
+            <div class="sidebar-header">
+                <div class="brand">
+                    <span class="brand-icon" aria-hidden="true">🎵</span>
+                    <span class="brand-name">The Real Seb</span>
+                </div>
+            </div>
+
+            <div class="nav-links">
+                <a href="/logs" class="nav-link" data-page="logs">
+                    <span class="nav-icon">📝</span>
+                    <span class="nav-label">Logs</span>
+                </a>
+            </div>
+        </nav>
+
+        <main class="scroll-viewport" id="main-viewport" role="main">
+            <!-- Header opcional que cada vista puede personalizar -->
+            {% block header %}{% endblock %}
+
+            <!-- Contenido principal -->
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- Scripts Comunes -->
+    <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+
+    <!-- Scripts Específicos -->
+    {% block scripts %}{% endblock %}
+</body>
+</html>

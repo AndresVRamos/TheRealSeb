@@ -26,6 +26,9 @@ PLAYBACK_VOLUME = 0.375
 # Intervalo de actualización del embed nowplaying (segundos)
 NOWPLAYING_UPDATE_INTERVAL = 15
 
+# Delay de estabilización después de seek (segundos)
+SEEK_STABILIZATION_DELAY = 0.5
+
 # Longitud de la barra de progreso (cantidad de caracteres)
 PROGRESS_BAR_LENGTH = 15
 

@@ -8,6 +8,7 @@ import pystray
 from PIL import Image, ImageDraw
 import os
 import logging
+import webbrowser
 
 
 class TextHandler(logging.Handler):
@@ -158,6 +159,14 @@ class LogWindow:
             self.window.withdraw()
             self.is_visible = False
 
+    def open_dashboard(self, icon=None, item=None):
+        """Abrir el dashboard web en el navegador predeterminado"""
+        try:
+            webbrowser.open('http://localhost:5000')
+            logging.info("Dashboard web abierto en el navegador")
+        except Exception as e:
+            logging.error(f"Error al abrir dashboard: {e}")
+
     def check_pending_actions(self):
         """Revisar si hay acciones pendientes y ejecutarlas"""
         if self.pending_action == 'show':
@@ -174,6 +183,7 @@ class LogWindow:
     def setup_tray_icon(self):
         image = self.create_image()
         menu = pystray.Menu(
+            pystray.MenuItem("Abrir Dashboard", self.open_dashboard),
             pystray.MenuItem("Mostrar/Ocultar Logs", self.toggle_window, default=True),
             pystray.MenuItem("Salir", self.quit_app)
         )

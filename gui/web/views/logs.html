@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Logs - The Real Seb{% endblock %}
+
+{% block description %}Visualizador de logs en tiempo real del bot Discord The Real Seb{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/logs.css') }}">
+{% endblock %}
+
+{% block header %}
+<header class="glass-header">
+    <div class="header-main">
+        <h1>
+            <span aria-hidden="true">📝</span>
+            <span>Logs</span>
+        </h1>
+        <div class="stats-grid" role="status" aria-live="polite">
+            <div class="stat-card">
+                <span class="stat-label">Total</span>
+                <span class="stat-value" id="stat-total">0</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Errores</span>
+                <span class="stat-value error" id="stat-errors">0</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Warnings</span>
+                <span class="stat-value warning" id="stat-warnings">0</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Info</span>
+                <span class="stat-value info" id="stat-info">0</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Tamaño</span>
+                <span class="stat-value" id="stat-size">0 MB</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="header-controls">
+        <button type="button" class="btn" onclick="scrollToBottom()" aria-label="Ir al final de los logs">
+            <span aria-hidden="true">⬇</span>
+            <span>Final</span>
+        </button>
+        <button type="button" class="btn" onclick="clearLogs()" aria-label="Limpiar vista de logs">
+            <span aria-hidden="true">↻</span>
+            <span>Limpiar Vista</span>
+        </button>
+        <button type="button" class="btn danger" onclick="clearServerLogs()" aria-label="Borrar archivo de logs del servidor">
+            <span aria-hidden="true">🗑</span>
+            <span>Borrar Archivo</span>
+        </button>
+
+        <div class="filters-group" role="group" aria-label="Filtros de nivel de log">
+            <button type="button" class="filter-btn active" data-level="all" onclick="toggleFilter('all')" aria-pressed="true">Todos</button>
+            <button type="button" class="filter-btn" data-level="ERROR" onclick="toggleFilter('ERROR')" aria-pressed="false">Errores</button>
+            <button type="button" class="filter-btn" data-level="WARNING" onclick="toggleFilter('WARNING')" aria-pressed="false">Warnings</button>
+            <button type="button" class="filter-btn" data-level="INFO" onclick="toggleFilter('INFO')" aria-pressed="false">Info</button>
+            <button type="button" class="filter-btn" data-level="DEBUG" onclick="toggleFilter('DEBUG')" aria-pressed="false">Debug</button>
+        </div>
+
+        <div class="toggle-container">
+            <label for="autoscroll">Auto-scroll</label>
+            <label class="switch" aria-label="Activar o desactivar auto-scroll">
+                <input type="checkbox" id="autoscroll" checked aria-checked="true">
+                <span class="slider" aria-hidden="true"></span>
+            </label>
+        </div>
+    </div>
+</header>
+{% endblock %}
+
+{% block content %}
+<!-- Contenido de Logs -->
+<div id="log-list" role="log" aria-live="polite" aria-atomic="false">
+    <div class="loading">Iniciando flujo de datos...</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/logs.js') }}"></script>
+{% endblock %}

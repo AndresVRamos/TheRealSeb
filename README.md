@@ -12,6 +12,7 @@ Bot de música para Discord con soporte para YouTube y Spotify, controles avanza
 - 📊 Barra de progreso en tiempo real
 - 📝 Búsqueda de letras con múltiples fuentes (Genius, LRCLib, lyrics.ovh)
 - 🖥️ GUI con system tray para logs
+- 🌐 **Web Dashboard** para monitoreo en tiempo real (http://localhost:5000)
 - ⏱️ Auto-desconexión cuando está solo 5+ minutos
 - 🎯 Comandos de posicionamiento (skipto, playnext, move, remove)
 - 🚀 Soporte completo para **Slash Commands** de Discord (`/comando`)
@@ -109,6 +110,27 @@ El comando `.lyrics` busca letras usando múltiples fuentes con sistema de fallb
 .lyrics              # Letras de la canción actual
 .lyrics Bohemian Rhapsody   # Buscar letras específicas
 ```
+
+## 🌐 Web Dashboard
+
+El bot incluye un dashboard web para monitoreo en tiempo real con diseño Apple-style:
+
+**Características:**
+- 📝 Logs en tiempo real con Server-Sent Events (SSE)
+- 🔍 Filtros por nivel (ERROR, WARNING, INFO, DEBUG)
+- 📊 Estadísticas: total de líneas, errores, warnings
+- 🎨 Diseño glassmorphism con modo oscuro/claro automático
+- 📱 Responsive (desktop y móvil)
+
+**Acceso:**
+- Local: http://localhost:5000
+- Remoto: http://TU_IP:5000
+- System Tray: Click derecho en el icono → "Abrir Dashboard"
+
+**Inicio automático:**
+El dashboard se inicia automáticamente al ejecutar el bot con `main.pyw` o `maniac.py`.
+
+Ver documentación completa en [gui/web/README.md](gui/web/README.md)
 
 ## 🔧 Requisitos
 

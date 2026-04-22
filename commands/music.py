@@ -25,7 +25,8 @@ from core.config import (
     FUTURE_RESULT_TIMEOUT,
     AUTOPLAY_ENABLED,
     AUTOPLAY_HISTORY_SIZE,
-    SLASH_COMMANDS_GUILD_ID
+    SLASH_COMMANDS_GUILD_ID,
+    SEEK_STABILIZATION_DELAY
 )
 from core.formatters import format_duration, parse_time_string, safe_edit_message
 from core.playback import (
@@ -477,7 +478,8 @@ class MusicCommands(commands.Cog):
                 ctx, None, self.voice_clients, self.loop_status,
                 self.queues, self.song_data, self.manual_stop,
                 bot=self.bot, autoplay_status=self.autoplay_status,
-                autoplay_in_progress=self.autoplay_in_progress
+                autoplay_in_progress=self.autoplay_in_progress,
+                seek_in_progress=self.seek_in_progress
             )
 
             message = await ctx.send(embed=embed, view=view)
@@ -980,7 +982,8 @@ class MusicCommands(commands.Cog):
             ctx, None, self.voice_clients, self.loop_status,
             self.queues, self.song_data, self.manual_stop,
             bot=self.bot, autoplay_status=self.autoplay_status,
-            autoplay_in_progress=self.autoplay_in_progress
+            autoplay_in_progress=self.autoplay_in_progress,
+            seek_in_progress=self.seek_in_progress
         )
 
         message = await ctx.send(embed=embed, view=view)
@@ -1236,10 +1239,40 @@ class MusicCommands(commands.Cog):
             }
 
             player = discord.FFmpegOpusAudio(stream_url, **seek_ffmpeg_options)
-            self.voice_clients[guild_id].play(player, after=self.after_play(ctx))
+
+            # Usar el canal original de reproducción en lugar del canal del seek
+            # para que los mensajes de autoplay/play_next vayan al canal correcto
+            class FakeCtx:
+                def __init__(self, guild, channel, send_func, author):
+                    self.guild = guild
+                    self.channel = channel
+                    self._send = send_func
+                    self.author = author
+
+                async def send(self, *args, **kwargs):
+                    return await self._send(*args, **kwargs)
+
+            original_channel = self.last_text_channel.get(guild_id, ctx.channel)
+            fake_ctx = FakeCtx(ctx.guild, original_channel, original_channel.send, ctx.author)
+
+            self.voice_clients[guild_id].play(player, after=self.after_play(fake_ctx))
 
             seek_time_str = format_duration(seek_seconds)
             await ctx.send(f"⏩ **Saltando a {seek_time_str} en:** *{current_title}*")
+
+            # Esperar un momento para que el player se estabilice y luego resetear el flag
+            await asyncio.sleep(SEEK_STABILIZATION_DELAY)
+            self.seek_in_progress[guild_id] = False
+
+            # Actualizar los botones de la vista activa si existe
+            if guild_id in self.active_controls_view:
+                self.active_controls_view[guild_id].update_button_states()
+                # Reiniciar el loop de actualización que se detuvo con el stop()
+                self.active_controls_view[guild_id].start_update_loop()
+                try:
+                    await self.active_controls_view[guild_id].message.edit(view=self.active_controls_view[guild_id])
+                except:
+                    pass
 
         except Exception as e:
             self.seek_in_progress[guild_id] = False
@@ -1742,7 +1775,8 @@ class MusicCommands(commands.Cog):
                 fake_ctx, None, self.voice_clients, self.loop_status,
                 self.queues, self.song_data, self.manual_stop,
                 bot=self.bot, autoplay_status=self.autoplay_status,
-                autoplay_in_progress=self.autoplay_in_progress
+                autoplay_in_progress=self.autoplay_in_progress,
+                seek_in_progress=self.seek_in_progress
             )
 
             message = await ctx.send(embed=embed, view=view)
@@ -1939,7 +1973,8 @@ class MusicCommands(commands.Cog):
             fake_ctx, None, self.voice_clients, self.loop_status,
             self.queues, self.song_data, self.manual_stop,
             bot=self.bot, autoplay_status=self.autoplay_status,
-            autoplay_in_progress=self.autoplay_in_progress
+            autoplay_in_progress=self.autoplay_in_progress,
+            seek_in_progress=self.seek_in_progress
         )
 
         message = await ctx.send(embed=embed, view=view)
@@ -2041,7 +2076,13 @@ class MusicCommands(commands.Cog):
     @app_commands.command(name="search", description="Busca una canción y muestra 5 resultados para elegir")
     @app_commands.describe(query="Nombre de la canción a buscar")
     async def search_slash(self, interaction: discord.Interaction, query: str):
-        await interaction.response.defer()
+        try:
+            await interaction.response.defer()
+        except discord.errors.NotFound:
+            # Interacción expiró antes de poder responder (>3s de latencia)
+            logging.error(f"Comando /search expiró antes de defer - posible problema de latencia o bot sobrecargado")
+            return
+
         ctx = UnifiedContext(interaction)
         if not await self.ensure_voice_unified(ctx):
             return
@@ -2051,24 +2092,11 @@ class MusicCommands(commands.Cog):
             self.queues[guild_id] = []
 
         try:
-            urls = await search_youtube_multiple(query, max_results=SEARCH_MAX_RESULTS)
-
-            if not urls:
-                await ctx.send("⚠️ **No se encontraron resultados en YouTube.**")
-                return
-
-            results = []
-            for url in urls:
-                try:
-                    video_info = await extract_video_info(self.ytdl, url)
-                    if video_info:
-                        results.append((url, video_info['title'], video_info.get('duration', 0)))
-                except Exception as e:
-                    logging.debug(f"Error obteniendo info de {url}: {e}")
-                    continue
+            # search_youtube_multiple ahora devuelve (url, title, duration) directamente
+            results = await search_youtube_multiple(query, max_results=SEARCH_MAX_RESULTS)
 
             if not results:
-                await ctx.send("⚠️ **No se pudieron obtener los resultados.**")
+                await ctx.send("⚠️ **No se encontraron resultados en YouTube.**")
                 return
 
             # Crear fake ctx para el callback
@@ -2097,15 +2125,8 @@ class MusicCommands(commands.Cog):
                     self.queues[guild_id].append((url, title, fake_ctx.author, duration))
                     await fake_ctx.send(f"➕ **Añadida a la queue:** *{title}*")
                 else:
-                    unified_ctx = UnifiedContext.__new__(UnifiedContext)
-                    unified_ctx.source = None
-                    unified_ctx.is_interaction = False
-                    unified_ctx._deferred = False
-                    unified_ctx.guild = fake_ctx.guild
-                    unified_ctx.author = fake_ctx.author
-                    unified_ctx.channel = fake_ctx.channel
-                    unified_ctx.voice = fake_ctx.voice
-                    unified_ctx.send = fake_ctx.send
+                    # Crear un UnifiedContext a partir del fake_ctx
+                    unified_ctx = UnifiedContext(fake_ctx)
                     await self._play_song_unified(unified_ctx, url, title, fake_ctx.author)
 
             embed = create_search_embed(query, results)
@@ -2274,6 +2295,8 @@ class MusicCommands(commands.Cog):
 
             player = discord.FFmpegOpusAudio(stream_url, **seek_ffmpeg_options)
 
+            # Usar el canal original de reproducción en lugar del canal del seek
+            # para que los mensajes de autoplay/play_next vayan al canal correcto
             class FakeCtx:
                 def __init__(self, guild, channel, send_func, author):
                     self.guild = guild
@@ -2284,11 +2307,26 @@ class MusicCommands(commands.Cog):
                 async def send(self, *args, **kwargs):
                     return await self._send(*args, **kwargs)
 
-            fake_ctx = FakeCtx(ctx.guild, ctx.channel, ctx.send, getattr(ctx, "author", None))
+            original_channel = self.last_text_channel.get(guild_id, ctx.channel)
+            fake_ctx = FakeCtx(ctx.guild, original_channel, original_channel.send, getattr(ctx, "author", None))
             self.voice_clients[guild_id].play(player, after=self.after_play(fake_ctx))
 
             seek_time_str = format_duration(seek_seconds)
             await ctx.send(f"⏩ **Saltando a {seek_time_str} en:** *{current_title}*")
+
+            # Esperar un momento para que el player se estabilice y luego resetear el flag
+            await asyncio.sleep(SEEK_STABILIZATION_DELAY)
+            self.seek_in_progress[guild_id] = False
+
+            # Actualizar los botones de la vista activa si existe
+            if guild_id in self.active_controls_view:
+                self.active_controls_view[guild_id].update_button_states()
+                # Reiniciar el loop de actualización que se detuvo con el stop()
+                self.active_controls_view[guild_id].start_update_loop()
+                try:
+                    await self.active_controls_view[guild_id].message.edit(view=self.active_controls_view[guild_id])
+                except:
+                    pass
 
         except Exception as e:
             self.seek_in_progress[guild_id] = False

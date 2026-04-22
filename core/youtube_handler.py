@@ -75,33 +75,43 @@ async def search_youtube(query: str) -> str:
 
 async def search_youtube_multiple(query: str, max_results: int = 5) -> list:
     """
-    Busca videos en YouTube y retorna múltiples resultados únicos
+    Busca videos en YouTube y retorna múltiples resultados con info básica
 
     Args:
         query: Término de búsqueda
         max_results: Número máximo de resultados a retornar
 
     Returns:
-        Lista de URLs de videos de YouTube (sin duplicados)
+        Lista de tuplas (url, title, duration) con información básica
     """
-    query_string = urllib.parse.urlencode({'search_query': query})
-    async with aiohttp.ClientSession() as session:
-        async with session.get(YOUTUBE_RESULTS_URL + query_string) as response:
-            content = await response.text()
-            search_results = re.findall(r'/watch\?v=(.{11})', content)
-            if not search_results:
-                logging.error("No se encontraron resultados en YouTube para la búsqueda.")
-                return []
-            # Eliminar duplicados manteniendo el orden
-            seen = set()
-            unique_results = []
-            for video_id in search_results:
-                if video_id not in seen:
-                    seen.add(video_id)
-                    unique_results.append(YOUTUBE_BASE_URL + 'watch?v=' + video_id)
-                    if len(unique_results) >= max_results:
-                        break
-            return unique_results
+    # Usar yt-dlp con ytsearch que ya incluye título y duración
+    ytdl = create_ytdl()
+    loop = asyncio.get_event_loop()
+
+    try:
+        # Usar ytsearchN: para obtener N resultados con metadata básica
+        search_query = f"ytsearch{max_results}:{query}"
+        data = await loop.run_in_executor(
+            None,
+            lambda: ytdl.extract_info(search_query, download=False, process=False)
+        )
+
+        results = []
+        if data and 'entries' in data:
+            # entries puede ser un iterador, convertirlo a lista
+            count = 0
+            for entry in data['entries']:
+                if entry and count < max_results:
+                    url = YOUTUBE_BASE_URL + 'watch?v=' + entry['id']
+                    title = entry.get('title', 'Unknown Title')
+                    duration = entry.get('duration', 0)
+                    results.append((url, title, duration))
+                    count += 1
+
+        return results
+    except Exception as e:
+        logging.error(f"Error en search_youtube_multiple: {e}")
+        return []
 
 
 async def extract_video_info(ytdl, url: str):

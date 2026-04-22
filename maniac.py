@@ -13,9 +13,33 @@ from dotenv import load_dotenv
 from gui.log_window import LogWindow
 from core.config import WRAPPED_ENABLED, SLASH_COMMANDS_GUILD_ID, MAX_RECONNECT_DELAY
 
+# Importar dashboard web (con manejo de errores si no está disponible)
+try:
+    from gui.web.dashboard import app as dashboard_app, ensure_log_file
+    DASHBOARD_AVAILABLE = True
+except ImportError as e:
+    logging.warning(f"Dashboard web no disponible: {e}")
+    DASHBOARD_AVAILABLE = False
+
 
 # Configurar logging
 logging.getLogger('discord').setLevel(logging.WARNING)
+
+# Configurar logging a archivo
+os.makedirs('data', exist_ok=True)
+file_handler = logging.FileHandler('data/bot.log', encoding='utf-8', mode='a')
+file_handler.setLevel(logging.DEBUG)
+file_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(file_formatter)
+
+# Agregar el file handler al logger raíz
+root_logger = logging.getLogger()
+root_logger.addHandler(file_handler)
+root_logger.setLevel(logging.DEBUG)
+
+# Silenciar logs de Flask/Werkzeug para que no contaminen los logs del bot
+# logging.getLogger('werkzeug').setLevel(logging.ERROR)
+# logging.getLogger('flask').setLevel(logging.ERROR)
 
 # Variable global para la ventana de logs
 log_window = LogWindow()
@@ -82,23 +106,27 @@ async def run_bot():
     @bot.tree.error
     async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
         """Manejador de errores para slash commands"""
-        if isinstance(error, app_commands.CommandOnCooldown):
-            await interaction.response.send_message(
-                f"⏳ Comando en cooldown. Intenta de nuevo en {error.retry_after:.1f}s",
-                ephemeral=True
-            )
-        elif isinstance(error, app_commands.MissingPermissions):
-            await interaction.response.send_message(
-                "🚫 No tienes permisos para usar este comando.",
-                ephemeral=True
-            )
-        else:
-            logging.error(f"Error en slash command: {error}")
-            if not interaction.response.is_done():
+        try:
+            if isinstance(error, app_commands.CommandOnCooldown):
                 await interaction.response.send_message(
-                    "⚠️ Ocurrió un error inesperado.",
+                    f"⏳ Comando en cooldown. Intenta de nuevo en {error.retry_after:.1f}s",
                     ephemeral=True
                 )
+            elif isinstance(error, app_commands.MissingPermissions):
+                await interaction.response.send_message(
+                    "🚫 No tienes permisos para usar este comando.",
+                    ephemeral=True
+                )
+            else:
+                logging.error(f"Error en slash command: {error}")
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        "⚠️ Ocurrió un error inesperado.",
+                        ephemeral=True
+                    )
+        except discord.errors.NotFound:
+            # La interacción ya expiró, no se puede responder
+            logging.error(f"No se pudo responder al comando - interacción expirada: {error}")
 
     @bot.command(name="sync", hidden=True)
     @commands.is_owner()
@@ -145,6 +173,33 @@ def start_bot():
     asyncio.run(run_bot())
 
 
+def start_dashboard():
+    """Iniciar el dashboard web en un thread separado"""
+    if not DASHBOARD_AVAILABLE:
+        return
+
+    try:
+        logging.info("=" * 70)
+        logging.info("Iniciando Web Dashboard...")
+        logging.info("Acceso local:  http://localhost:5000")
+        logging.info("Acceso remoto: http://<IP_PUBLICA>:5000")
+        logging.info("=" * 70)
+
+        ensure_log_file()
+        # use_reloader=False es necesario porque el reloader no funciona en threads
+        dashboard_app.run(
+            host='0.0.0.0',
+            port=5000,
+            debug=False,
+            threaded=True,
+            use_reloader=False
+        )
+    except Exception as e:
+        logging.error(f"Error al iniciar Web Dashboard: {e}")
+        logging.info("El bot continuará sin el dashboard.")
+        logging.info("Puedes iniciarlo manualmente con: python gui/web/dashboard.py")
+
+
 if __name__ == "__main__":
     # Iniciar el bot de Discord en un thread separado
     bot_thread = threading.Thread(target=start_bot, daemon=True)
@@ -153,6 +208,14 @@ if __name__ == "__main__":
     # Iniciar el icono del system tray en un thread separado
     tray_thread = threading.Thread(target=log_window.run_tray, daemon=True)
     tray_thread.start()
+
+    # Iniciar el dashboard web en un thread separado
+    if DASHBOARD_AVAILABLE:
+        dashboard_thread = threading.Thread(target=start_dashboard, daemon=True)
+        dashboard_thread.start()
+        logging.info("Dashboard web iniciado en background")
+    else:
+        logging.warning("Dashboard web no disponible - continuando sin él")
 
     # Ejecutar la ventana de logs en el thread principal (requerido por tkinter en Windows)
     log_window.run()
