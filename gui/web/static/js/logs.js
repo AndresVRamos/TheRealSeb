@@ -195,6 +195,8 @@ function toggleFilter(level) {
         const shouldShow = level === 'all' || line.dataset.level === level;
         line.style.display = shouldShow ? 'block' : 'none';
     });
+
+    scrollToBottom();
 }
 
 /**
