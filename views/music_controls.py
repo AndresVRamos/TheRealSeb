@@ -321,10 +321,12 @@ class MusicControls(discord.ui.View):
 
         if vc.is_playing():
             await pause_playback(guild_id, self.song_data, self.voice_clients)
-            logging.info(f"Reproducción pausada vía botón por {interaction.user}")
+            current_title = self.song_data.get(guild_id, {}).get('title', 'desconocida')
+            logging.info(f"[PLAYBACK] Pausado: '{current_title}' por {interaction.user.display_name} (botón) en {interaction.guild.name}")
         elif vc.is_paused():
             await resume_playback(guild_id, self.song_data, self.voice_clients)
-            logging.info(f"Reproducción reanudada vía botón por {interaction.user}")
+            current_title = self.song_data.get(guild_id, {}).get('title', 'desconocida')
+            logging.info(f"[PLAYBACK] Reanudado: '{current_title}' por {interaction.user.display_name} (botón) en {interaction.guild.name}")
         else:
             await interaction.response.send_message("🚫 **No hay nada reproduciéndose.**", ephemeral=True)
             return
@@ -336,7 +338,8 @@ class MusicControls(discord.ui.View):
         guild_id = self.guild_id
 
         if await skip_song(guild_id, self.voice_clients):
-            logging.info(f"Canción saltada vía botón por {interaction.user}")
+            current_title = self.song_data.get(guild_id, {}).get('title', 'desconocida')
+            logging.info(f"[CMD] {interaction.user.display_name} usó skip (botón) - saltó '{current_title}' en {interaction.guild.name}")
             await interaction.response.send_message("⏭️ **Canción saltada!**", ephemeral=True)
         else:
             await interaction.response.send_message("🚫 **No hay ninguna canción para saltar.**", ephemeral=True)
@@ -347,11 +350,11 @@ class MusicControls(discord.ui.View):
 
         is_looping = toggle_loop(guild_id, self.loop_status)
 
+        status = "activado" if is_looping else "desactivado"
+        logging.info(f"[CMD] {interaction.user.display_name} usó loop (botón) - {status} en {interaction.guild.name}")
         if is_looping:
-            logging.info(f"Loop activado vía botón por {interaction.user}")
             await interaction.response.send_message("🔁 **Loop activado!**", ephemeral=True)
         else:
-            logging.info(f"Loop desactivado vía botón por {interaction.user}")
             await interaction.response.send_message("🔁 **Loop desactivado!**", ephemeral=True)
 
         await self.update_embed_after_response(interaction)
@@ -362,11 +365,11 @@ class MusicControls(discord.ui.View):
 
         is_autoplay = toggle_autoplay(guild_id, self.autoplay_status)
 
+        status = "activado" if is_autoplay else "desactivado"
+        logging.info(f"[CMD] {interaction.user.display_name} usó autoplay (botón) - {status} en {interaction.guild.name}")
         if is_autoplay:
-            logging.info(f"Autoplay activado vía botón por {interaction.user}")
             await interaction.response.send_message("📻 **Radio activado!** Cuando termine la queue, se reproducirán canciones parecidas.", ephemeral=True)
         else:
-            logging.info(f"Autoplay desactivado vía botón por {interaction.user}")
             await interaction.response.send_message("📻 **Radio desactivado.**", ephemeral=True)
 
         await self.update_embed_after_response(interaction)
@@ -377,7 +380,7 @@ class MusicControls(discord.ui.View):
 
         if await shuffle_queue(guild_id, self.queues):
             queue_len = len(self.queues[guild_id])
-            logging.info(f"Queue mezclada vía botón por {interaction.user}")
+            logging.info(f"[CMD] {interaction.user.display_name} usó shuffle (botón) en {interaction.guild.name}")
             await interaction.response.send_message(f"🔀 **Queue mezclada!** ({queue_len} canciones)", ephemeral=True)
             await self.update_embed_after_response(interaction)
         else:
@@ -394,7 +397,8 @@ class MusicControls(discord.ui.View):
         self.cancel_update_loop()
 
         if await stop_playback(guild_id, self.voice_clients, self.queues, self.manual_stop, bot=self.bot):
-            logging.info(f"Reproducción detenida vía botón por {interaction.user}")
+            current_title = self.song_data.get(guild_id, {}).get('title', 'desconocida')
+            logging.info(f"[PLAYBACK] Detenido: '{current_title}' por {interaction.user.display_name} (botón) en {interaction.guild.name}")
             await interaction.response.send_message("⏹️ **Reproducción detenida y queue limpiada!**", ephemeral=True)
         else:
             await interaction.response.send_message("🚫 **No estoy conectado a un canal de voz.**", ephemeral=True)

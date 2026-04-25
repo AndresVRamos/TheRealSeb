@@ -353,10 +353,11 @@ class MusicCommands(commands.Cog):
                 try:
                     if guild_id in self.song_data:
                         song_data = self.song_data[guild_id]
+                        guild = self.bot.get_guild(guild_id)
+                        logging.info(f"[PLAYBACK] Terminó: '{song_data['title']}' en {guild.name if guild else guild_id}")
                         voice_channel = self.voice_clients[guild_id].channel
                         listeners = [(m.id, m.display_name) for m in voice_channel.members if not m.bot]
                         requester = song_data.get('requester')
-                        guild = self.bot.get_guild(guild_id)
 
                         record_play(
                             guild_id=guild_id,
@@ -462,7 +463,8 @@ class MusicCommands(commands.Cog):
             await asyncio.sleep(0.5)
 
             if self.voice_clients[guild_id].is_playing():
-                logging.info(f"Confirmed: Audio is playing for: {actual_title}")
+                source = "autoplay" if is_autoplay else f"request de {actual_requester.display_name}"
+                logging.info(f"[PLAYBACK] Reproduciendo: '{actual_title}' ({source}) en {ctx.guild.name}")
             else:
                 logging.error(f"Audio is NOT playing after start command for: {actual_title}")
 
@@ -662,8 +664,7 @@ class MusicCommands(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         """Actualizar presencia cuando el bot está listo"""
-        await update_presence(self.bot,False)
-        logging.info(f'{self.bot.user} is now jamming')
+        await update_presence(self.bot, False)
 
     @commands.Cog.listener()
     async def on_command(self, ctx):
@@ -708,6 +709,7 @@ class MusicCommands(commands.Cog):
     @commands.command(name="play", help="Reproduce una canción o playlist desde YouTube o Spotify.")
     @command_category("playback")
     async def play(self, ctx, *, url: str):
+        logging.info(f"[CMD] {ctx.author.display_name} usó .play con: '{url}' en {ctx.guild.name}")
         if not await self.ensure_voice(ctx):
             return
 
@@ -778,6 +780,7 @@ class MusicCommands(commands.Cog):
     @commands.command(name="add", help="Añade una canción o playlist a la queue.")
     @command_category("playback")
     async def add(self, ctx, *, url: str):
+        logging.info(f"[CMD] {ctx.author.display_name} usó .add con: '{url}' en {ctx.guild.name}")
         if not await self.ensure_voice(ctx):
             return
 
@@ -882,6 +885,7 @@ class MusicCommands(commands.Cog):
     @commands.command(name="playnext", help="Agrega la canción a la siguiente posición en la queue.")
     @command_category("playback")
     async def playnext(self, ctx, *, url: str):
+        logging.info(f"[CMD] {ctx.author.display_name} usó .playnext con: '{url}' en {ctx.guild.name}")
         if not await self.ensure_voice(ctx):
             return
 
@@ -1070,7 +1074,9 @@ class MusicCommands(commands.Cog):
             return
 
         guild_id = ctx.guild.id
+        current_title = self.current_song.get(guild_id, "desconocida")
         if await skip_song(guild_id, self.voice_clients):
+            logging.info(f"[CMD] {ctx.author.display_name} usó .skip - saltó '{current_title}' en {ctx.guild.name}")
             await ctx.send("⏭️ **Canción saltada!**")
         else:
             await ctx.send("🚫 **No hay ninguna canción reproduciéndose para saltar!**")
@@ -1090,6 +1096,7 @@ class MusicCommands(commands.Cog):
         cancion = self.queues[guild_id].pop(posicion - 1)
         self.queues[guild_id].insert(0, cancion)
 
+        logging.info(f"[CMD] {ctx.author.display_name} usó .skipto {posicion} - saltó a '{cancion[1]}' en {ctx.guild.name}")
         await ctx.send(f"⏩ **Saltando a la canción número {posicion}:** *{cancion[1]}*!")
 
     @commands.command(name="clear", help="Limpia la queue actual.")
@@ -1100,8 +1107,9 @@ class MusicCommands(commands.Cog):
 
         guild_id = ctx.guild.id
         if guild_id in self.queues:
-            logging.info("Limpiando la queue.")
+            queue_size = len(self.queues[guild_id])
             self.queues[guild_id].clear()
+            logging.info(f"[CMD] {ctx.author.display_name} usó .clear - eliminó {queue_size} canciones en {ctx.guild.name}")
             await ctx.send("🧹 **Se limpió la cola de canciones!**")
         else:
             await ctx.send("🚫 **No hay cola que limpiar!**")
@@ -1114,6 +1122,8 @@ class MusicCommands(commands.Cog):
 
         guild_id = ctx.guild.id
         if await pause_playback(guild_id, self.song_data, self.voice_clients):
+            current_title = self.current_song.get(guild_id, "desconocida")
+            logging.info(f"[PLAYBACK] Pausado: '{current_title}' por {ctx.author.display_name} en {ctx.guild.name}")
             await ctx.send("⏸️ **Reproducción pausada!**")
         else:
             await ctx.send("🚫 **No hay nada reproduciéndose para pausar!**")
@@ -1126,6 +1136,8 @@ class MusicCommands(commands.Cog):
 
         guild_id = ctx.guild.id
         if await resume_playback(guild_id, self.song_data, self.voice_clients):
+            current_title = self.current_song.get(guild_id, "desconocida")
+            logging.info(f"[PLAYBACK] Reanudado: '{current_title}' por {ctx.author.display_name} en {ctx.guild.name}")
             await ctx.send("▶️ **Reproducción reanudada!**")
         else:
             await ctx.send("🚫 **No hay nada pausado para reanudar!**")
@@ -1139,6 +1151,8 @@ class MusicCommands(commands.Cog):
         guild_id = ctx.guild.id
         is_looping = toggle_loop(guild_id, self.loop_status)
 
+        status = "activado" if is_looping else "desactivado"
+        logging.info(f"[CMD] {ctx.author.display_name} usó .loop - {status} en {ctx.guild.name}")
         if is_looping:
             await ctx.send("🔁 **Loop activado!**")
         else:
@@ -1157,6 +1171,8 @@ class MusicCommands(commands.Cog):
         guild_id = ctx.guild.id
         is_autoplay = toggle_autoplay(guild_id, self.autoplay_status)
 
+        status = "activado" if is_autoplay else "desactivado"
+        logging.info(f"[CMD] {ctx.author.display_name} usó .autoplay - {status} en {ctx.guild.name}")
         if is_autoplay:
             await ctx.send("📻 **Autoplay activado!** Cuando la queue termine, se reproducirán canciones parecidas.")
         else:
@@ -1169,11 +1185,13 @@ class MusicCommands(commands.Cog):
             return
 
         guild_id = ctx.guild.id
+        current_title = self.current_song.get(guild_id, "desconocida")
         # Cancelar autoplay en progreso
         self.autoplay_in_progress[guild_id] = False
         if guild_id in self.active_controls_view:
             self.active_controls_view[guild_id].cancel_update_loop()
         if await stop_playback(guild_id, self.voice_clients, self.queues, self.manual_stop, bot=self.bot):
+            logging.info(f"[PLAYBACK] Detenido: '{current_title}' por {ctx.author.display_name} en {ctx.guild.name}")
             await ctx.send("⏹️ **Reproducción detenida!**")
         else:
             await ctx.send("🚫 **No hay ninguna canción sonando!**")
@@ -1184,6 +1202,7 @@ class MusicCommands(commands.Cog):
         guild_id = ctx.guild.id
 
         if await shuffle_queue(guild_id, self.queues):
+            logging.info(f"[CMD] {ctx.author.display_name} usó .shuffle en {ctx.guild.name}")
             await ctx.send("🔀 **Queue mezclada!**")
         else:
             await ctx.send("🚫 **La queue está vacía!**")
@@ -1258,6 +1277,7 @@ class MusicCommands(commands.Cog):
             self.voice_clients[guild_id].play(player, after=self.after_play(fake_ctx))
 
             seek_time_str = format_duration(seek_seconds)
+            logging.info(f"[CMD] {ctx.author.display_name} usó .seek a {seek_time_str} en '{current_title}' en {ctx.guild.name}")
             await ctx.send(f"⏩ **Saltando a {seek_time_str} en:** *{current_title}*")
 
             # Esperar un momento para que el player se estabilice y luego resetear el flag
@@ -1299,6 +1319,7 @@ class MusicCommands(commands.Cog):
 
         song = self.queues[guild_id].pop(desde - 1)
         self.queues[guild_id].insert(hasta - 1, song)
+        logging.info(f"[CMD] {ctx.author.display_name} usó .move {desde} {hasta} - movió '{song[1]}' en {ctx.guild.name}")
         await ctx.send(f"🔀 **Movida** *{song[1]}* **de la posición {desde} a la {hasta}.**")
 
     @commands.command(name="remove", help="Remueve una canción de la queue por su posición.")
@@ -1316,6 +1337,7 @@ class MusicCommands(commands.Cog):
             return
 
         song = self.queues[guild_id].pop(posicion - 1)
+        logging.info(f"[CMD] {ctx.author.display_name} usó .remove {posicion} - eliminó '{song[1]}' en {ctx.guild.name}")
         await ctx.send(f"🗑️ **Removida** *{song[1]}* **de la posición {posicion}.**")
 
     @commands.command(name="leave", help="Desconecta el bot del canal de voz y borra la queue.")
@@ -1331,6 +1353,7 @@ class MusicCommands(commands.Cog):
             if guild_id in self.queues:
                 self.queues[guild_id].clear()
             await update_presence(self.bot, False)
+            logging.info(f"[CMD] {ctx.author.display_name} usó .leave en {ctx.guild.name}")
             await ctx.send("👋 **Me he desconectado del canal de voz y la queue ha sido borrada.**")
         else:
             await ctx.send("🚫 **No estoy conectado a ningún canal de voz.**")
@@ -1338,6 +1361,7 @@ class MusicCommands(commands.Cog):
     @commands.command(name="search", help="Busca una canción y muestra 5 resultados para elegir.")
     @command_category("playback")
     async def search(self, ctx, *, query: str):
+        logging.info(f"[CMD] {ctx.author.display_name} usó .search con: '{query}' en {ctx.guild.name}")
         if not await self.ensure_voice(ctx):
             return
 
@@ -1371,6 +1395,7 @@ class MusicCommands(commands.Cog):
 
             # Callback cuando se selecciona un resultado
             async def on_select(ctx, url, title, duration=0):
+                logging.info(f"[CMD] {ctx.author.display_name} seleccionó de búsqueda: '{title}' en {ctx.guild.name}")
                 # Cancelar autoplay en progreso
                 if self.autoplay_in_progress.get(guild_id, False):
                     logging.info(f"Cancelando autoplay en progreso (search) para guild {guild_id}")
@@ -1639,6 +1664,7 @@ class MusicCommands(commands.Cog):
 
     async def _play_impl(self, ctx: UnifiedContext, query: str):
         """Implementación compartida de play"""
+        logging.info(f"[CMD] {ctx.author.display_name} usó /play con: '{query}' en {ctx.guild.name}")
         if not await self.ensure_voice_unified(ctx):
             return
 
@@ -1764,6 +1790,11 @@ class MusicCommands(commands.Cog):
             self.voice_clients[guild_id].play(player, after=self.after_play(fake_ctx))
             await asyncio.sleep(0.5)
 
+            if self.voice_clients[guild_id].is_playing():
+                logging.info(f"[PLAYBACK] Reproduciendo: '{actual_title}' (request de {actual_requester.display_name}) en {ctx.guild.name}")
+            else:
+                logging.error(f"Audio is NOT playing after start command for: {actual_title}")
+
             await self.disable_previous_controls(guild_id)
 
             embed = create_now_playing_embed(
@@ -1794,6 +1825,7 @@ class MusicCommands(commands.Cog):
 
     async def _add_impl(self, ctx: UnifiedContext, query: str):
         """Implementación compartida de add"""
+        logging.info(f"[CMD] {ctx.author.display_name} usó /add con: '{query}' en {ctx.guild.name}")
         guild_id = ctx.guild.id
         if guild_id not in self.queues:
             self.queues[guild_id] = []
@@ -1862,6 +1894,8 @@ class MusicCommands(commands.Cog):
 
         guild_id = ctx.guild.id
         if await pause_playback(guild_id, self.song_data, self.voice_clients):
+            current_title = self.current_song.get(guild_id, "desconocida")
+            logging.info(f"[PLAYBACK] Pausado: '{current_title}' por {interaction.user.display_name} en {interaction.guild.name}")
             await ctx.send("⏸️ **Reproducción pausada!**")
         else:
             await ctx.send("🚫 **No hay nada reproduciéndose para pausar!**")
@@ -1874,6 +1908,8 @@ class MusicCommands(commands.Cog):
 
         guild_id = ctx.guild.id
         if await resume_playback(guild_id, self.song_data, self.voice_clients):
+            current_title = self.current_song.get(guild_id, "desconocida")
+            logging.info(f"[PLAYBACK] Reanudado: '{current_title}' por {interaction.user.display_name} en {interaction.guild.name}")
             await ctx.send("▶️ **Reproducción reanudada!**")
         else:
             await ctx.send("🚫 **No hay nada pausado para reanudar!**")
@@ -1885,7 +1921,9 @@ class MusicCommands(commands.Cog):
             return
 
         guild_id = ctx.guild.id
+        current_title = self.current_song.get(guild_id, "desconocida")
         if await skip_song(guild_id, self.voice_clients):
+            logging.info(f"[CMD] {interaction.user.display_name} usó /skip - saltó '{current_title}' en {interaction.guild.name}")
             await ctx.send("⏭️ **Canción saltada!**")
         else:
             await ctx.send("🚫 **No hay ninguna canción reproduciéndose para saltar!**")
@@ -2076,6 +2114,7 @@ class MusicCommands(commands.Cog):
     @app_commands.command(name="search", description="Busca una canción y muestra 5 resultados para elegir")
     @app_commands.describe(query="Nombre de la canción a buscar")
     async def search_slash(self, interaction: discord.Interaction, query: str):
+        logging.info(f"[CMD] {interaction.user.display_name} usó /search con: '{query}' en {interaction.guild.name}")
         try:
             await interaction.response.defer()
         except discord.errors.NotFound:
@@ -2146,10 +2185,12 @@ class MusicCommands(commands.Cog):
             return
 
         guild_id = ctx.guild.id
+        current_title = self.current_song.get(guild_id, "desconocida")
         self.autoplay_in_progress[guild_id] = False
         if guild_id in self.active_controls_view:
             self.active_controls_view[guild_id].cancel_update_loop()
         if await stop_playback(guild_id, self.voice_clients, self.queues, self.manual_stop, bot=self.bot):
+            logging.info(f"[PLAYBACK] Detenido: '{current_title}' por {interaction.user.display_name} en {interaction.guild.name}")
             await ctx.send("⏹️ **Reproducción detenida!**")
         else:
             await ctx.send("🚫 **No hay ninguna canción sonando!**")
@@ -2167,6 +2208,7 @@ class MusicCommands(commands.Cog):
             if guild_id in self.queues:
                 self.queues[guild_id].clear()
             await update_presence(self.bot, False)
+            logging.info(f"[CMD] {interaction.user.display_name} usó /leave en {interaction.guild.name}")
             await ctx.send("👋 **Me he desconectado del canal de voz y la queue ha sido borrada.**")
         else:
             await ctx.send("🚫 **No estoy conectado a ningún canal de voz.**")
@@ -2180,6 +2222,8 @@ class MusicCommands(commands.Cog):
         guild_id = ctx.guild.id
         is_looping = toggle_loop(guild_id, self.loop_status)
 
+        status = "activado" if is_looping else "desactivado"
+        logging.info(f"[CMD] {interaction.user.display_name} usó /loop - {status} en {interaction.guild.name}")
         if is_looping:
             await ctx.send("🔁 **Loop activado!**")
         else:
@@ -2198,6 +2242,8 @@ class MusicCommands(commands.Cog):
         guild_id = ctx.guild.id
         is_autoplay = toggle_autoplay(guild_id, self.autoplay_status)
 
+        status = "activado" if is_autoplay else "desactivado"
+        logging.info(f"[CMD] {interaction.user.display_name} usó /autoplay - {status} en {interaction.guild.name}")
         if is_autoplay:
             await ctx.send("📻 **Autoplay activado!** Cuando la queue termine, se reproducirán canciones parecidas.")
         else:
@@ -2239,6 +2285,7 @@ class MusicCommands(commands.Cog):
         cancion = self.queues[guild_id].pop(posicion - 1)
         self.queues[guild_id].insert(0, cancion)
 
+        logging.info(f"[CMD] {interaction.user.display_name} usó /skipto {posicion} - saltó a '{cancion[1]}' en {interaction.guild.name}")
         await ctx.send(f"⏩ **Saltando a la canción número {posicion}:** *{cancion[1]}*!")
 
     @app_commands.command(name="seek", description="Salta a un momento específico de la canción")
@@ -2312,6 +2359,7 @@ class MusicCommands(commands.Cog):
             self.voice_clients[guild_id].play(player, after=self.after_play(fake_ctx))
 
             seek_time_str = format_duration(seek_seconds)
+            logging.info(f"[CMD] {interaction.user.display_name} usó /seek a {seek_time_str} en '{current_title}' en {interaction.guild.name}")
             await ctx.send(f"⏩ **Saltando a {seek_time_str} en:** *{current_title}*")
 
             # Esperar un momento para que el player se estabilice y luego resetear el flag
@@ -2355,6 +2403,7 @@ class MusicCommands(commands.Cog):
 
         song = self.queues[guild_id].pop(desde - 1)
         self.queues[guild_id].insert(hasta - 1, song)
+        logging.info(f"[CMD] {interaction.user.display_name} usó /move {desde} {hasta} - movió '{song[1]}' en {interaction.guild.name}")
         await ctx.send(f"🔀 **Movida** *{song[1]}* **de la posición {desde} a la {hasta}.**")
 
     @app_commands.command(name="remove", description="Elimina una canción de la cola")
@@ -2374,6 +2423,7 @@ class MusicCommands(commands.Cog):
             return
 
         song = self.queues[guild_id].pop(posicion - 1)
+        logging.info(f"[CMD] {interaction.user.display_name} usó /remove {posicion} - eliminó '{song[1]}' en {interaction.guild.name}")
         await ctx.send(f"🗑️ **Removida** *{song[1]}* **de la posición {posicion}.**")
 
     @app_commands.command(name="clear", description="Limpia toda la cola de reproducción")
@@ -2384,7 +2434,9 @@ class MusicCommands(commands.Cog):
 
         guild_id = ctx.guild.id
         if guild_id in self.queues:
+            queue_size = len(self.queues[guild_id])
             self.queues[guild_id].clear()
+            logging.info(f"[CMD] {interaction.user.display_name} usó /clear - eliminó {queue_size} canciones en {interaction.guild.name}")
             await ctx.send("🧹 **Se limpió la cola de canciones!**")
         else:
             await ctx.send("🚫 **No hay cola que limpiar!**")
@@ -2395,6 +2447,7 @@ class MusicCommands(commands.Cog):
         guild_id = ctx.guild.id
 
         if await shuffle_queue(guild_id, self.queues):
+            logging.info(f"[CMD] {interaction.user.display_name} usó /shuffle en {interaction.guild.name}")
             await ctx.send("🔀 **Queue mezclada!**")
         else:
             await ctx.send("🚫 **La queue está vacía!**")
