@@ -7,6 +7,7 @@ import threading
 import pystray
 from PIL import Image, ImageDraw
 import os
+import sys
 import logging
 import webbrowser
 
@@ -19,7 +20,10 @@ class TextHandler(logging.Handler):
         self.text_widget = text_widget
 
     def emit(self, record):
+        # Formatear el mensaje base
         msg = self.format(record)
+
+        # Determinar el tag basado en el nivel
         level = record.levelname
         if level == 'ERROR' or level == 'CRITICAL':
             tag = 'error'
@@ -35,6 +39,7 @@ class TextHandler(logging.Handler):
         def append():
             if self.text_widget and self.text_widget.winfo_exists():
                 self.text_widget.configure(state='normal')
+                # Insertar todo el mensaje (incluyendo stack trace) con el mismo tag
                 self.text_widget.insert(tk.END, msg + '\n', tag)
                 self.text_widget.configure(state='disabled')
                 self.text_widget.yview(tk.END)
@@ -43,26 +48,56 @@ class TextHandler(logging.Handler):
 
 
 class StreamRedirector:
-    """Clase para redirigir stdout/stderr al text widget"""
+    """Clase para redirigir stdout/stderr al text widget con buffer"""
 
     def __init__(self, text_widget, stream_type='stdout'):
         self.text_widget = text_widget
         self.stream_type = stream_type
+        self.tag = 'error' if stream_type == 'stderr' else 'default'
         self.buffer = ""
+        self.flush_scheduled = False
+        self.lock = threading.Lock()
 
     def write(self, text):
+        if not text:
+            return
+
+        with self.lock:
+            self.buffer += text
+
+            # Programar flush si no está programado
+            if not self.flush_scheduled and self.text_widget:
+                self.flush_scheduled = True
+                # Esperar 50ms para acumular más texto antes de mostrar
+                self.text_widget.after(50, self._flush_buffer)
+
+    def _flush_buffer(self):
+        """Vaciar el buffer y mostrar todo el texto acumulado"""
+        with self.lock:
+            if not self.buffer:
+                self.flush_scheduled = False
+                return
+
+            text_to_show = self.buffer
+            self.buffer = ""
+            self.flush_scheduled = False
+
+        tag = self.tag
+
         def append():
             if self.text_widget and self.text_widget.winfo_exists():
                 self.text_widget.configure(state='normal')
-                self.text_widget.insert(tk.END, text)
+                self.text_widget.insert(tk.END, text_to_show, tag)
                 self.text_widget.configure(state='disabled')
                 self.text_widget.yview(tk.END)
 
-        if self.text_widget and text.strip():  # Solo si hay texto
+        if self.text_widget:
             self.text_widget.after(0, append)
 
     def flush(self):
-        pass  # Necesario para compatibilidad con sys.stdout/stderr
+        """Forzar flush del buffer"""
+        if self.buffer:
+            self._flush_buffer()
 
 
 class LogWindow:
@@ -132,6 +167,14 @@ class LogWindow:
         logging.getLogger('yt_dlp').setLevel(logging.DEBUG)
         logging.getLogger('yt_dlp').addHandler(text_handler)
 
+        # Redirigir stderr para capturar errores no manejados
+        sys.stderr = StreamRedirector(self.text_area, 'stderr')
+
+        # Instalar excepthooks para capturar excepciones no manejadas como logs
+        self._original_excepthook = sys.excepthook
+        sys.excepthook = self._custom_excepthook
+        threading.excepthook = self._threading_excepthook
+
         # Mensaje de bienvenida
         self.text_area.configure(state='normal')
         self.text_area.insert(tk.END, "=== Music Maniac Bot Log Window ===\n")
@@ -167,6 +210,29 @@ class LogWindow:
         except Exception as e:
             logging.error(f"Error al abrir dashboard: {e}")
 
+    def _custom_excepthook(self, exc_type, exc_value, exc_traceback):
+        """Capturar excepciones no manejadas y mostrarlas como un solo log"""
+        if issubclass(exc_type, KeyboardInterrupt):
+            # No loguear Ctrl+C
+            sys.__excepthook__(exc_type, exc_value, exc_traceback)
+            return
+
+        # Loguear la excepción completa como un solo registro
+        logging.error(
+            "Excepción no manejada",
+            exc_info=(exc_type, exc_value, exc_traceback)
+        )
+
+    def _threading_excepthook(self, args):
+        """Capturar excepciones en threads"""
+        if args.exc_type == SystemExit:
+            return
+
+        logging.error(
+            f"Excepción en thread '{args.thread.name}'",
+            exc_info=(args.exc_type, args.exc_value, args.exc_traceback)
+        )
+
     def check_pending_actions(self):
         """Revisar si hay acciones pendientes y ejecutarlas"""
         if self.pending_action == 'show':
@@ -183,8 +249,8 @@ class LogWindow:
     def setup_tray_icon(self):
         image = self.create_image()
         menu = pystray.Menu(
-            pystray.MenuItem("Abrir Dashboard", self.open_dashboard),
-            pystray.MenuItem("Mostrar/Ocultar Logs", self.toggle_window, default=True),
+            pystray.MenuItem("Abrir Dashboard", self.open_dashboard, default=True),
+            pystray.MenuItem("Mostrar/Ocultar Logs", self.toggle_window),
             pystray.MenuItem("Salir", self.quit_app)
         )
         self.icon = pystray.Icon("MusicManiac", image, "Music Maniac Bot", menu)

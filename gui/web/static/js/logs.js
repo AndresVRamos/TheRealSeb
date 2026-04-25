@@ -58,6 +58,7 @@ function connectToStream() {
 // Estado para tracking de tracebacks multi-línea
 let lastLevel = 'DEBUG';
 let inTraceback = false;
+let currentErrorBlock = null;  // Referencia al div contenedor del error actual
 
 /**
  * Detecta si una línea es parte de un traceback
@@ -80,11 +81,31 @@ function isTracebackLine(line) {
         trimmed.startsWith('...') ||  // "...<6 lines>..."
         /^[\s]{2,}[a-zA-Z_]/.test(line) ||  // Líneas indentadas con código
         /^[\.\s]{2,}/.test(line) ||  // Líneas con puntos de continuación
-        // Líneas de excepción final (AttributeError:, ValueError:, etc.)
+        // Líneas de excepción (Error/Exception en cualquier parte)
         /^[A-Z][a-zA-Z]+Error:/.test(trimmed) ||
         /^[A-Z][a-zA-Z]+Exception:/.test(trimmed) ||
-        /^discord\.[a-zA-Z.]+Error:/.test(trimmed) ||
-        /^discord\.[a-zA-Z.]+Exception:/.test(trimmed)
+        // Excepciones con módulo (socket.gaierror:, aiohttp.ClientError:, etc.)
+        /^[a-z_][a-zA-Z0-9_.]*\.[a-zA-Z]+Error/.test(trimmed) ||
+        /^[a-z_][a-zA-Z0-9_.]*\.[a-zA-Z]+Exception/.test(trimmed) ||
+        /^[a-z_][a-zA-Z0-9_.]*error:/.test(trimmed.toLowerCase()) ||
+        // discord.py exceptions
+        /^discord\.[a-zA-Z.]+:/.test(trimmed) ||
+        // Mensajes de excepción encadenada
+        trimmed.startsWith('The above exception') ||
+        trimmed.startsWith('During handling')
+    );
+}
+
+/**
+ * Detecta si una línea es la última de un traceback (el mensaje de excepción)
+ * @param {string} line - Línea a analizar
+ * @returns {boolean}
+ */
+function isExceptionMessage(line) {
+    const trimmed = line.trim();
+    return (
+        /^[A-Z][a-zA-Z_.]+Error:/.test(trimmed) ||
+        /^[A-Z][a-zA-Z_.]+Exception:/.test(trimmed)
     );
 }
 
@@ -98,32 +119,57 @@ function appendLogLine(line) {
     // Si la línea está vacía pero estamos en traceback, tratarla como parte del traceback
     if (!line.trim() && !inTraceback) return;
 
-    const div = document.createElement('div');
-    div.className = 'log-line';
-
     // Detectar nivel de log
     let level = 'DEBUG';
+    let isPartOfTraceback = false;
+
     if (line.includes('ERROR') || line.includes('CRITICAL')) {
         level = 'ERROR';
-        inTraceback = true;  // Comenzar tracking de traceback
+        inTraceback = true;
+        // Cerrar bloque anterior si existe
+        currentErrorBlock = null;
     } else if (line.includes('WARNING')) {
         level = 'WARNING';
         inTraceback = false;
+        currentErrorBlock = null;
     } else if (line.includes('INFO')) {
         level = 'INFO';
         inTraceback = false;
+        currentErrorBlock = null;
     } else if (inTraceback && isTracebackLine(line)) {
-        // Si estamos en un traceback y esta línea es parte de él, mantener nivel ERROR
-        level = lastLevel;
-        div.classList.add('traceback-line');  // Clase especial para agrupar visualmente
+        // Esta línea es parte del traceback actual
+        level = 'ERROR';
+        isPartOfTraceback = true;
+
+        // Si es el mensaje final de excepción, cerrar el traceback
+        if (isExceptionMessage(line) && !line.trim().startsWith('The above')) {
+            // Verificar si es una excepción encadenada
+            // No cerrar si es parte de una cadena de excepciones
+        }
     } else {
-        // Línea normal sin nivel especial - fin del traceback
+        // Línea normal - fin del traceback
         inTraceback = false;
+        currentErrorBlock = null;
     }
 
     lastLevel = level;
+
+    // Si es parte de un traceback, agregar al bloque existente
+    if (isPartOfTraceback && currentErrorBlock) {
+        currentErrorBlock.textContent += '\n' + line;
+        return;
+    }
+
+    // Crear nuevo div
+    const div = document.createElement('div');
+    div.className = 'log-line';
     div.dataset.level = level;
-    div.textContent = line || ' ';  // Espacio para líneas vacías
+    div.textContent = line || ' ';
+
+    // Si es un ERROR, guardarlo como bloque actual para agregar traceback
+    if (level === 'ERROR' && !isPartOfTraceback) {
+        currentErrorBlock = div;
+    }
 
     // Aplicar filtro actual
     if (currentFilter !== 'all' && level !== currentFilter) {
