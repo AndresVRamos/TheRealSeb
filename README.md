@@ -47,54 +47,54 @@ python maniac.py
 
 ## 🎮 Comandos
 
-> **Nota:** Todos los comandos están disponibles tanto con el prefijo `.` como a través de **Slash Commands** de Discord (`/comando`).
+> **Nota:** Todos los comandos están disponibles tanto con un prefijo custom establecido en el archivo config como a través de **Slash Commands** de Discord (`/comando`).
 
 | Comando | Descripción |
 |---------|-------------|
-| `.play <enlace>` | Reproduce una canción o playlist |
-| `.search <búsqueda>` | Busca una canción y muestra 5 opciones para escoger |
-| `.add <enlace>` | Añade a la queue |
-| `.playnext <enlace>` | Añade como siguiente canción |
-| `.queue` | Muestra la queue actual |
-| `.nowplaying` | Muestra la canción actual con barra de progreso |
-| `.lyrics [búsqueda]` | Muestra letras de la canción actual o búsqueda |
-| `.skip` | Salta la canción actual |
-| `.skipto <posición>` | Salta a una posición específica |
-| `.seek <tiempo>` | Salta a un timestamp (ej: 1m30s, 2:15) |
-| `.pause` / `.resume` | Pausa/reanuda la reproducción |
-| `.loop` | Activa/desactiva loop |
-| `.autoplay` / `.radio` | Activa/desactiva autoplay de canciones relacionadas |
-| `.shuffle` | Mezcla la queue |
-| `.move <de> <a>` | Mueve una canción en la queue |
-| `.remove <posición>` | Remueve una canción de la queue |
-| `.clear` | Limpia la queue |
-| `.stop` | Detiene y limpia todo |
-| `.leave` | Desconecta el bot |
-| `.help` | Muestra todos los comandos |
+| `play <enlace>` | Reproduce una canción o playlist |
+| `search <búsqueda>` | Busca una canción y muestra 5 opciones para escoger |
+| `add <enlace>` | Añade a la queue |
+| `playnext <enlace>` | Añade como siguiente canción |
+| `queue` | Muestra la queue actual |
+| `nowplaying` | Muestra la canción actual con barra de progreso |
+| `lyrics [búsqueda]` | Muestra letras de la canción actual o búsqueda |
+| `skip` | Salta la canción actual |
+| `skipto <posición>` | Salta a una posición específica |
+| `seek <tiempo>` | Salta a un timestamp (ej: 1m30s, 2:15) |
+| `pause` / `resume` | Pausa/reanuda la reproducción |
+| `loop` | Activa/desactiva loop |
+| `autoplay` / `radio` | Activa/desactiva autoplay de canciones relacionadas |
+| `shuffle` | Mezcla la queue |
+| `move <de> <a>` | Mueve una canción en la queue |
+| `remove <posición>` | Remueve una canción de la queue |
+| `clear` | Limpia la queue |
+| `stop` | Detiene y limpia todo |
+| `leave` | Desconecta el bot |
+| `help` | Muestra todos los comandos |
 
 ### Comandos de Estadísticas
 
 | Comando | Descripción |
 |---------|-------------|
-| `.mystats` | Muestra tus estadísticas en el servidor |
-| `.stats [@user]` | Muestra estadísticas de un usuario |
-| `.topsongs` | Top canciones del servidor |
-| `.topusers` | Top usuarios del servidor |
-| `.history [@user]` | Historial de reproducciones recientes |
+| `mystats` | Muestra tus estadísticas en el servidor |
+| `stats [@user]` | Muestra estadísticas de un usuario |
+| `topsongs` | Top canciones del servidor |
+| `topusers` | Top usuarios del servidor |
+| `history [@user]` | Historial de reproducciones recientes |
 
 ### Comandos de Wrapped
 
 | Comando | Descripción |
 |---------|-------------|
-| `.wrapped [@user] [año]` | Resumen musical estilo Spotify Wrapped |
-| `.wrappedsummary` / `.ws` | Resumen rápido del Wrapped |
-| `.topartists [@user] [año]` | Top artistas del año |
-| `.listeningtime` / `.lt` | Tiempo total de escucha |
-| `.streak` | Racha de días consecutivos escuchando |
+| `wrapped [@user] [año]` | Resumen musical estilo Spotify Wrapped |
+| `wrappedsummary` / `ws` | Resumen rápido del Wrapped |
+| `topartists [@user] [año]` | Top artistas del año |
+| `listeningtime` / `lt` | Tiempo total de escucha |
+| `streak` | Racha de días consecutivos escuchando |
 
 ## 📝 Comando de Letras
 
-El comando `.lyrics` busca letras usando múltiples fuentes con sistema de fallback:
+El comando `lyrics` busca letras usando múltiples fuentes con sistema de fallback:
 
 1. **Genius** - Mayor cobertura (requiere API key)
 2. **LRCLib** - Incluye letras sincronizadas
@@ -107,8 +107,8 @@ El comando `.lyrics` busca letras usando múltiples fuentes con sistema de fallb
 
 **Uso:**
 ```
-.lyrics              # Letras de la canción actual
-.lyrics Bohemian Rhapsody   # Buscar letras específicas
+/lyrics              # Letras de la canción actual
+/lyrics Bohemian Rhapsody   # Buscar letras específicas
 ```
 
 ## 🌐 Web Dashboard
