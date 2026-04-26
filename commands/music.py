@@ -69,6 +69,7 @@ from core.stats_handler import (
     get_user_top_songs,
     get_server_top_users,
     get_server_top_songs,
+    get_server_stats,
     get_user_history
 )
 from core.decorators import command_category
@@ -1074,6 +1075,11 @@ class MusicCommands(commands.Cog):
     async def topusers(self, ctx):
         await self.show_top_users(UnifiedContext(ctx))
 
+    @commands.command(name="serverstats", help="Muestra las estadísticas generales del servidor.")
+    @command_category("stats")
+    async def serverstats(self, ctx):
+        await self.show_server_stats(UnifiedContext(ctx))
+
     @commands.command(name="history", help="Muestra tu historial de reproducciones recientes.")
     @command_category("stats")
     async def history(self, ctx, member: discord.Member = None):
@@ -1491,6 +1497,64 @@ class MusicCommands(commands.Cog):
 
         embed.description = "\n".join(users_text)
         embed.set_thumbnail(url=ctx.guild.icon.url if ctx.guild.icon else None)
+        await ctx.send(embed=embed)
+
+    async def show_server_stats(self, ctx: UnifiedContext):
+        """Muestra estadísticas generales del servidor"""
+        guild_id = ctx.guild.id
+
+        stats = get_server_stats(guild_id)
+
+        if stats['total_plays'] == 0:
+            await ctx.send("🚫 **No hay reproducciones registradas en este servidor.**")
+            return
+
+        top_songs = get_server_top_songs(guild_id, limit=5)
+        top_users = get_server_top_users(guild_id, limit=5)
+
+        embed = discord.Embed(
+            title=f"📊 Estadísticas del Servidor",
+            color=discord.Color.blurple()
+        )
+        embed.set_thumbnail(url=ctx.guild.icon.url if ctx.guild.icon else None)
+
+        # Stats generales
+        embed.add_field(name="🎵 Total reproducciones", value=str(stats['total_plays']), inline=True)
+        embed.add_field(name="⏱️ Tiempo total", value=format_duration(stats['total_time']), inline=True)
+        embed.add_field(name="💿 Canciones únicas", value=str(stats['unique_tracks']), inline=True)
+        embed.add_field(name="🎤 Artistas únicos", value=str(stats['unique_artists']), inline=True)
+
+        if stats['first_play']:
+            embed.add_field(name="📅 Primera reproducción", value=stats['first_play'][:10], inline=True)
+
+        # Top usuario
+        if top_users:
+            _, user_name, play_count, _ = top_users[0]
+            embed.add_field(
+                name="👑 Usuario más activo",
+                value=f"**{user_name}** ({play_count} requests)",
+                inline=True
+            )
+
+        # Top 5 canciones
+        if top_songs:
+            songs_text = []
+            for i, song in enumerate(top_songs):
+                medal = "🥇" if i == 0 else "🥈" if i == 1 else "🥉" if i == 2 else f"**{i+1}.**"
+                artist_text = f" - *{song[1]}*" if song[1] else ""
+                songs_text.append(f"{medal} {song[0]}{artist_text} ({song[2]})")
+            embed.add_field(name="🏆 Top 5 Canciones", value="\n".join(songs_text), inline=False)
+
+        # Top 5 usuarios
+        if top_users:
+            users_text = []
+            for i, user_data in enumerate(top_users):
+                _, user_name, play_count, total_time = user_data
+                medal = "🥇" if i == 0 else "🥈" if i == 1 else "🥉" if i == 2 else f"**{i+1}.**"
+                users_text.append(f"{medal} {user_name} - {play_count} ({format_duration(total_time)})")
+            embed.add_field(name="👥 Top 5 Usuarios", value="\n".join(users_text), inline=False)
+
+        embed.set_footer(text=ctx.guild.name)
         await ctx.send(embed=embed)
 
     async def show_history(self, ctx: UnifiedContext, member: discord.Member = None):
@@ -1995,6 +2059,10 @@ class MusicCommands(commands.Cog):
     @app_commands.command(name="topusers", description="Muestra los usuarios con más reproducciones")
     async def topusers_slash(self, interaction: discord.Interaction):
         await self.show_top_users(UnifiedContext(interaction))
+
+    @app_commands.command(name="serverstats", description="Muestra las estadísticas generales del servidor")
+    async def serverstats_slash(self, interaction: discord.Interaction):
+        await self.show_server_stats(UnifiedContext(interaction))
 
     @app_commands.command(name="lyrics", description="Muestra las letras de una canción")
     @app_commands.describe(query="Nombre de la canción (deja vacío para la canción actual)")

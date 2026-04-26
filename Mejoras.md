@@ -25,9 +25,9 @@
    - `.favorites` para ver lista personal
    - Base de datos SQLite simple
 
-2. **Historial de reproducción**
-   - `.history` para ver últimas canciones reproducidas
-   - Útil para "¿cómo se llamaba esa canción?"
+2. ~~**Historial de reproducción**~~ ✅
+   - ~~`.history` para ver últimas canciones reproducidas~~
+   - ~~Útil para "¿cómo se llamaba esa canción?"~~
 
 3. ~~**Controles con botones (Discord UI)**~~ ✅
    - ~~Añadir botones de ⏸️ ▶️ ⏭️ 🔀 🔁 en el mensaje de nowplaying~~
@@ -70,8 +70,8 @@
    ~~- Cuando queue termina, buscar canciones relacionadas automáticamente~~
    ~~- Usar recomendaciones de YouTube/Spotify~~
 
-5. **Estadísticas del servidor**
-   - `.stats` - Canciones más reproducidas, usuario que más pone música, tiempo total escuchado
+5. ~~**Estadísticas del servidor**~~ ✅
+   - ~~`.serverstats` - Canciones más reproducidas, usuario que más pone música, tiempo total escuchado~~
 
 6. **Control de volumen**
    - `.volume <0-100>` para ajustar volumen por servidor

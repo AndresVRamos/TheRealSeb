@@ -236,7 +236,7 @@ def _add_track_url(track_id: int, url: str, source: str, conn: sqlite3.Connectio
 # RECORD PLAY
 # ============================================
 
-def record_play_v2(guild_discord_id: int, guild_name: str,
+def record_play(guild_discord_id: int, guild_name: str,
                    requester_discord_id: int, requester_name: str,
                    song_title: str, artist: Optional[str], url: Optional[str],
                    duration: Optional[int], listeners: List[Tuple[int, str]],
@@ -422,7 +422,7 @@ def update_user_streak(user_id: int, guild_id: int, date_key: str,
 
 
 # ============================================
-# QUERY FUNCTIONS V1
+# QUERY FUNCTIONS
 # ============================================
 
 def get_user_id_from_discord(discord_id: int, conn: sqlite3.Connection = None) -> Optional[int]:
@@ -451,9 +451,9 @@ def get_guild_id_from_discord(discord_id: int, conn: sqlite3.Connection = None) 
     return row['id'] if row else None
 
 
-def get_user_stats_v2(discord_user_id: int, discord_guild_id: Optional[int] = None) -> Dict[str, Any]:
+def get_user_stats(discord_user_id: int, discord_guild_id: Optional[int] = None) -> Dict[str, Any]:
     """
-    Obtiene estadísticas de usuario (compatible con get_user_stats v1).
+    Obtiene estadísticas de usuario.
     Devuelve: total_solicitado, total_escuchado, tiempo_total, primera_reproduccion, ultima_reproduccion
     """
     conn = get_connection()
@@ -519,10 +519,10 @@ def get_user_stats_v2(discord_user_id: int, discord_guild_id: Optional[int] = No
     }
 
 
-def get_user_top_songs_v2(discord_user_id: int, discord_guild_id: Optional[int] = None,
+def get_user_top_songs(discord_user_id: int, discord_guild_id: Optional[int] = None,
                           limit: int = 10) -> List[Tuple[str, str, int]]:
     """
-    Obtiene las canciones más solicitadas por un usuario (compatible con get_user_top_songs v1).
+    Obtiene las canciones más solicitadas por un usuario.
     Devuelve: lista de (título_canción, artista, contador_solicitudes)
     """
     conn = get_connection()
@@ -605,9 +605,9 @@ def get_user_top_artists(discord_user_id: int, discord_guild_id: Optional[int] =
     return results
 
 
-def get_server_top_songs_v2(discord_guild_id: int, limit: int = 10) -> List[Tuple[str, str, int]]:
+def get_server_top_songs(discord_guild_id: int, limit: int = 10) -> List[Tuple[str, str, int]]:
     """
-    Obtiene las canciones principales en un servidor (compatible con get_server_top_songs v1).
+    Obtiene las canciones principales en un servidor.
     Devuelve: lista de (título_canción, artista, contador_solicitudes)
     """
     conn = get_connection()
@@ -634,9 +634,9 @@ def get_server_top_songs_v2(discord_guild_id: int, limit: int = 10) -> List[Tupl
     return results
 
 
-def get_server_top_users_v2(discord_guild_id: int, limit: int = 10) -> List[Tuple[int, str, int, int]]:
+def get_server_top_users(discord_guild_id: int, limit: int = 10) -> List[Tuple[int, str, int, int]]:
     """
-    Obtiene los usuarios principales en un servidor (compatible con get_server_top_users v1).
+    Obtiene los usuarios principales en un servidor.
     Devuelve: lista de (discord_user_id, user_name, request_count, total_time)
     """
     conn = get_connection()
@@ -668,10 +668,10 @@ def get_server_top_users_v2(discord_guild_id: int, limit: int = 10) -> List[Tupl
     return results
 
 
-def get_user_history_v2(discord_user_id: int, discord_guild_id: Optional[int] = None,
+def get_user_history(discord_user_id: int, discord_guild_id: Optional[int] = None,
                         limit: int = 20) -> List[Tuple[str, str, str]]:
     """
-    Obtiene el historial de reproducción reciente de un usuario (compatible con get_user_history v1).
+    Obtiene el historial de reproducción reciente de un usuario.
     Devuelve: lista de (título_canción, artista, reproducido_en)
     """
     conn = get_connection()
@@ -956,3 +956,53 @@ def _calculate_listening_personality(unique_tracks: int, unique_artists: int,
         return "Music Enthusiast"
     else:
         return "Casual Listener"
+
+
+# ============================================
+# SERVER STATS
+# ============================================
+
+def get_server_stats(discord_guild_id: int) -> Dict[str, Any]:
+    """
+    Obtiene estadísticas generales del servidor.
+    Devuelve: total_plays, total_time, unique_tracks, unique_artists, first_play, last_play
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    guild_id = get_guild_id_from_discord(discord_guild_id, conn)
+    if not guild_id:
+        conn.close()
+        return {
+            'total_plays': 0,
+            'total_time': 0,
+            'unique_tracks': 0,
+            'unique_artists': 0,
+            'first_play': None,
+            'last_play': None
+        }
+
+    cursor.execute('''
+        SELECT
+            COUNT(*) as total_plays,
+            COALESCE(SUM(t.duration_seconds), 0) as total_time,
+            COUNT(DISTINCT t.id) as unique_tracks,
+            COUNT(DISTINCT t.artist_id) as unique_artists,
+            MIN(p.played_at) as first_play,
+            MAX(p.played_at) as last_play
+        FROM plays p
+        JOIN tracks t ON p.track_id = t.id
+        WHERE p.guild_id = ?
+    ''', (guild_id,))
+
+    row = cursor.fetchone()
+    conn.close()
+
+    return {
+        'total_plays': row['total_plays'],
+        'total_time': row['total_time'],
+        'unique_tracks': row['unique_tracks'],
+        'unique_artists': row['unique_artists'],
+        'first_play': row['first_play'],
+        'last_play': row['last_play']
+    }

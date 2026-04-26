@@ -1,5 +1,5 @@
 """
-Esquema de base de datos v2 para el bot Music Maniac
+Esquema de base de datos para el bot Music Maniac
 Esquema normalizado con soporte para estadísticas estilo Wrapped
 """
 import sqlite3
@@ -9,7 +9,7 @@ from typing import Optional
 
 from core.config import STATS_DATABASE_PATH
 
-# Schema version for migrations
+# Schema version
 SCHEMA_VERSION = 2
 
 
@@ -20,8 +20,8 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
-def init_database_v2():
-    """Inicializa el esquema de la base de datos v2 con todas las tablas e índices"""
+def init_database():
+    """Inicializa el esquema de la base de datos con todas las tablas e índices"""
     os.makedirs(os.path.dirname(STATS_DATABASE_PATH), exist_ok=True)
     conn = get_connection()
     cursor = conn.cursor()
@@ -356,7 +356,7 @@ def init_database_v2():
     conn.commit()
     conn.close()
 
-    logging.info(f"Base de datos v{SCHEMA_VERSION} inicializada correctamente")
+    logging.info("Base de datos inicializada correctamente")
 
 
 def get_schema_version() -> Optional[int]:
@@ -372,52 +372,3 @@ def get_schema_version() -> Optional[int]:
         return None
 
 
-def check_v1_tables_exist() -> bool:
-    """Verifica si existen las tablas v1 (para detección de migración)."""
-    try:
-        conn = sqlite3.connect(STATS_DATABASE_PATH)
-        cursor = conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='requests'")
-        has_requests = cursor.fetchone() is not None
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='listens'")
-        has_listens = cursor.fetchone() is not None
-
-        has_listens_v1 = False
-        # Verificar si listens tiene estructura v1 (request_id) o v2 (play_id)
-        if has_listens:
-            cursor.execute("PRAGMA table_info(listens)")
-            columns = [row[1] for row in cursor.fetchall()]
-            # Si tiene request_id, es v1
-            has_listens_v1 = 'request_id' in columns
-
-        conn.close()
-        return has_requests and has_listens and has_listens_v1
-    except:
-        return False
-
-
-def check_v2_tables_exist() -> bool:
-    """Verifica si existen las tablas v2 con estructura correcta."""
-    try:
-        conn = sqlite3.connect(STATS_DATABASE_PATH)
-        cursor = conn.cursor()
-
-        # Verificar tabla plays
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='plays'")
-        has_plays = cursor.fetchone() is not None
-
-        # Verificar tabla listens con play_id
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='listens'")
-        has_listens = cursor.fetchone() is not None
-
-        if has_listens:
-            cursor.execute("PRAGMA table_info(listens)")
-            columns = [row[1] for row in cursor.fetchall()]
-            has_listens_v2 = 'play_id' in columns
-        else:
-            has_listens_v2 = False
-
-        conn.close()
-        return has_plays and has_listens_v2
-    except:
-        return False
