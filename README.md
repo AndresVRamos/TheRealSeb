@@ -13,7 +13,7 @@ Bot de música para Discord con soporte para YouTube y Spotify, controles avanza
 - 📝 Búsqueda de letras con múltiples fuentes (Genius, LRCLib, lyrics.ovh)
 - 🖥️ GUI con system tray para logs
 - 🌐 Web Dashboard para monitoreo en tiempo real
-- ⏱️ Auto-desconexión cuando está solo 5+ minutos
+- ⏱️ Auto-desconexión cuando el bot está solo en el canal de voz
 - 🎯 Comandos de posicionamiento (skipto, playnext, move, remove)
 - 🚀 Soporte completo para **Slash Commands** de Discord (`/comando`)
 

@@ -636,7 +636,7 @@ class MusicCommands(commands.Cog):
 
             if len(human_members) == 0:
                 if guild_id not in self.alone_timeout_tasks or self.alone_timeout_tasks[guild_id].done():
-                    logging.info(f"Bot quedó solo en guild {guild_id}, iniciando timeout de 5 minutos")
+                    logging.info(f"Bot quedó solo en guild {guild_id}, iniciando timeout de {ALONE_TIMEOUT_SECONDS}s")
 
                     text_channel = self.last_text_channel.get(guild_id)
                     if not text_channel or text_channel not in member.guild.text_channels:
