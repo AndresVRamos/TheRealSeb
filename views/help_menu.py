@@ -5,6 +5,8 @@ import discord
 from discord.ext import commands
 from typing import Dict, List
 
+from core.config import BOT_PREFIX
+
 
 class HelpMenuView(discord.ui.View):
     """Vista interactiva para el comando help con selector de categorías"""
@@ -138,8 +140,8 @@ class HelpMenuView(discord.ui.View):
                 (f"📦 {category}", f"Comandos de {category}")
             )
 
-            # Mostrar solo los nombres de los comandos
-            cmd_names = ", ".join([f"`.{c.name}`" for c in cmds[:8]])
+            # Mostrar solo los nombres de los comandos (sin prefijo, se indica en el footer)
+            cmd_names = ", ".join([f"`{c.name}`" for c in cmds[:8]])
             if len(cmds) > 8:
                 cmd_names += f" *y {len(cmds) - 8} más...*"
 
@@ -149,7 +151,7 @@ class HelpMenuView(discord.ui.View):
                 inline=False
             )
 
-        embed.set_footer(text="Prefijo: . | Slash: / | Usa el menú para ver detalles")
+        embed.set_footer(text=f"Prefijo: {BOT_PREFIX} | Slash: / | Usa el menú para ver detalles")
         return embed
 
     def _create_category_embed(self, category: str) -> discord.Embed:
@@ -178,7 +180,7 @@ class HelpMenuView(discord.ui.View):
                     else:
                         params.append(f"[{param_name}]")
 
-                signature = f".{cmd.name}"
+                signature = f"{BOT_PREFIX}{cmd.name}"
                 if params:
                     signature += " " + " ".join(params)
 
@@ -204,7 +206,7 @@ class HelpMenuView(discord.ui.View):
                     else:
                         params.append(f"[{param_name}]")
 
-                signature = f".{cmd.name}"
+                signature = f"{BOT_PREFIX}{cmd.name}"
                 slash_signature = f"/{cmd.name}"
                 if params:
                     param_str = " " + " ".join(params)
@@ -219,7 +221,7 @@ class HelpMenuView(discord.ui.View):
                     inline=False
                 )
 
-        embed.set_footer(text=f"{len(cmds)} comandos en esta categoría | Prefijo: . | Slash: /")
+        embed.set_footer(text=f"{len(cmds)} comandos en esta categoría | Prefijo: {BOT_PREFIX} | Slash: /")
         return embed
 
     async def on_timeout(self):

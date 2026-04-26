@@ -11,7 +11,7 @@ import threading
 from dotenv import load_dotenv
 
 from gui.log_window import LogWindow
-from core.config import WRAPPED_ENABLED, SLASH_COMMANDS_GUILD_ID, MAX_RECONNECT_DELAY
+from core.config import WRAPPED_ENABLED, SLASH_COMMANDS_GUILD_ID, MAX_RECONNECT_DELAY, BOT_PREFIX
 
 # Importar dashboard web (con manejo de errores si no está disponible)
 try:
@@ -54,7 +54,7 @@ async def run_bot():
     intents.message_content = True
 
     bot = commands.Bot(
-        command_prefix=".",
+        command_prefix=BOT_PREFIX,
         intents=intents,
         case_insensitive=True,
         help_command=None,

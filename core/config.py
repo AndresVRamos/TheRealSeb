@@ -3,6 +3,10 @@ Configuración centralizada del bot Music Maniac
 Modifica estos valores para personalizar el comportamiento del bot
 """
 
+# === BOT ===
+# Prefijo para comandos de texto (ej: .play, !play)
+BOT_PREFIX = "."
+
 # === TIMEOUTS ===
 # Tiempo en segundos antes de desconectarse si el bot está solo en el canal de voz
 ALONE_TIMEOUT_SECONDS = 60
