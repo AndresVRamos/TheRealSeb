@@ -119,4 +119,4 @@ MAX_RECONNECT_DELAY = 60.0
 # === SLASH COMMANDS ===
 # ID del servidor para sync de desarrollo (instantáneo)
 # Cambiar a None para sync global (tarda hasta 1 hora)
-SLASH_COMMANDS_GUILD_ID = 1158181010970771576  # Ej: 123456789012345678
+SLASH_COMMANDS_GUILD_ID = None  # Ej: 123456789012345678
