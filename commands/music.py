@@ -17,6 +17,10 @@ from core.config import (
     VOICE_CONNECT_TIMEOUT,
     QUEUE_ITEMS_PER_PAGE,
     PLAYBACK_VOLUME,
+    LOUDNORM_ENABLED,
+    LOUDNORM_TARGET,
+    LOUDNORM_TP,
+    LOUDNORM_LRA,
     SEARCH_MAX_RESULTS,
     TOP_SONGS_LIMIT,
     TOP_USERS_LIMIT,
@@ -162,10 +166,16 @@ class MusicCommands(commands.Cog):
         init_database()
 
         # Opciones de FFmpeg
+        if LOUDNORM_ENABLED:
+            audio_filter = f'loudnorm=I={LOUDNORM_TARGET}:TP={LOUDNORM_TP}:LRA={LOUDNORM_LRA}'
+        else:
+            audio_filter = f'volume={PLAYBACK_VOLUME}'
+
         self.ffmpeg_options = {
             'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-            'options': f'-vn -filter:a "volume={PLAYBACK_VOLUME}"'
+            'options': f'-vn -filter:a "{audio_filter}"'
         }
+        self.audio_filter = audio_filter  # Para reusar en seek
 
     async def disable_previous_controls(self, guild_id: int):
         """Deshabilita los controles del embed anterior si existe"""
@@ -943,7 +953,7 @@ class MusicCommands(commands.Cog):
 
             seek_ffmpeg_options = {
                 'before_options': f'-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -ss {seek_seconds}',
-                'options': f'-vn -filter:a "volume={PLAYBACK_VOLUME}"'
+                'options': f'-vn -filter:a "{self.audio_filter}"'
             }
 
             player = discord.FFmpegOpusAudio(stream_url, **seek_ffmpeg_options)
@@ -1920,7 +1930,7 @@ class MusicCommands(commands.Cog):
 
             seek_ffmpeg_options = {
                 'before_options': f'-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -ss {seek_seconds}',
-                'options': f'-vn -filter:a "volume={PLAYBACK_VOLUME}"'
+                'options': f'-vn -filter:a "{self.audio_filter}"'
             }
 
             player = discord.FFmpegOpusAudio(stream_url, **seek_ffmpeg_options)

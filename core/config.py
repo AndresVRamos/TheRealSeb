@@ -24,8 +24,14 @@ SEARCH_VIEW_TIMEOUT = 60
 QUEUE_ITEMS_PER_PAGE = 25
 
 # === REPRODUCTOR ===
-# Volumen de reproducción (0.0 a 1.0)
+# Volumen de reproducción (0.0 a 1.0) - Solo se usa si LOUDNORM_ENABLED = False
 PLAYBACK_VOLUME = 0.375
+
+# Normalización de volumen EBU R128 (todas las canciones suenan al mismo nivel)
+LOUDNORM_ENABLED = True
+LOUDNORM_TARGET = -14  # LUFS objetivo (-14 es estándar streaming)
+LOUDNORM_TP = -1       # True Peak máximo (evita clipping)
+LOUDNORM_LRA = 11      # Rango de loudness
 
 # Intervalo de actualización del embed nowplaying (segundos)
 NOWPLAYING_UPDATE_INTERVAL = 15
