@@ -8,6 +8,8 @@ import re
 import logging
 import asyncio
 
+from core.config import SEARCH_SUFFIX
+
 
 YOUTUBE_BASE_URL = 'https://www.youtube.com/'
 YOUTUBE_RESULTS_URL = 'https://www.youtube.com/results?'
@@ -62,6 +64,10 @@ async def search_youtube(query: str) -> str:
     Returns:
         URL del video de YouTube o None si no se encontró
     """
+    # Agregar sufijo para evitar videos musicales
+    if SEARCH_SUFFIX:
+        query = f"{query} {SEARCH_SUFFIX}"
+    logging.info(f"[SEARCH] Buscando en YouTube: '{query}'")
     query_string = urllib.parse.urlencode({'search_query': query})
     async with aiohttp.ClientSession() as session:
         async with session.get(YOUTUBE_RESULTS_URL + query_string) as response:
@@ -84,6 +90,11 @@ async def search_youtube_multiple(query: str, max_results: int = 5) -> list:
     Returns:
         Lista de tuplas (url, title, duration) con información básica
     """
+    # Agregar sufijo para evitar videos musicales
+    if SEARCH_SUFFIX:
+        query = f"{query} {SEARCH_SUFFIX}"
+    logging.info(f"[SEARCH] Buscando en YouTube: '{query}'")
+
     # Usar yt-dlp con ytsearch que ya incluye título y duración
     ytdl = create_ytdl()
     loop = asyncio.get_event_loop()

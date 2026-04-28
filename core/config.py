@@ -50,6 +50,10 @@ PROGRESS_BAR_EMPTY = "─"
 # Cantidad de resultados en el comando .search
 SEARCH_MAX_RESULTS = 5
 
+# Sufijo para búsquedas en YouTube (evita videos musicales, obtiene audio limpio)
+# Dejar vacío "" para desactivar
+SEARCH_SUFFIX = "audio"
+
 # === ESTADÍSTICAS ===
 # Ruta de la base de datos SQLite para estadísticas
 STATS_DATABASE_PATH = "data/stats.db"
