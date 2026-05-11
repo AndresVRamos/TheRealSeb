@@ -1,5 +1,5 @@
 """
-Ventana de logs con interfaz gráfica para el bot Music Maniac
+Ventana de logs con interfaz gráfica para el bot The Real Seb
 """
 import tkinter as tk
 from tkinter import scrolledtext
@@ -129,7 +129,7 @@ class LogWindow:
     def setup_window(self):
         """Configurar la ventana inicial"""
         self.window = tk.Tk()
-        self.window.title("Music Maniac - Bot Logs")
+        self.window.title("The Real Seb - Bot Logs")
         self.window.geometry("800x600")
 
         # Configurar el cierre de la ventana
@@ -177,7 +177,7 @@ class LogWindow:
 
         # Mensaje de bienvenida
         self.text_area.configure(state='normal')
-        self.text_area.insert(tk.END, "=== Music Maniac Bot Log Window ===\n")
+        self.text_area.insert(tk.END, "=== The Real Seb Bot Log Window ===\n")
         self.text_area.insert(tk.END, "Bot iniciado correctamente.\n\n")
         self.text_area.configure(state='disabled')
 
@@ -253,7 +253,7 @@ class LogWindow:
             pystray.MenuItem("Mostrar/Ocultar Logs", self.toggle_window),
             pystray.MenuItem("Salir", self.quit_app)
         )
-        self.icon = pystray.Icon("MusicManiac", image, "Music Maniac Bot", menu)
+        self.icon = pystray.Icon("TheRealSeb", image, "The Real Seb Bot", menu)
 
     def quit_app(self, icon=None, item=None):
         if self.icon:

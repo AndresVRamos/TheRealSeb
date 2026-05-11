@@ -1,3 +1,3 @@
 """
-Módulo de comandos del bot Music Maniac
+Módulo de comandos del bot The Real Seb
 """

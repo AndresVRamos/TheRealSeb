@@ -1,3 +1,3 @@
 """
-Módulo de vistas (UI components) del bot Music Maniac
+Módulo de vistas (UI components) del bot The Real Seb
 """

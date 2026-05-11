@@ -1,6 +1,6 @@
 # 🌐 Log Server - Monitoreo Remoto del Bot
 
-Sistema de visualización de logs en tiempo real vía web para monitoreo remoto del bot Music Maniac.
+Sistema de visualización de logs en tiempo real vía web para monitoreo remoto del bot The Real Seb.
 
 ## 📋 Características
 
@@ -32,7 +32,7 @@ Verás algo como:
 
 ```
 ============================================================
-🎵 Music Maniac - Log Server
+🎵 The Real Seb - Log Server
 ============================================================
 📁 Archivo de logs: C:\path\to\data\bot.log
 🌐 Servidor local: http://localhost:5000
@@ -89,7 +89,7 @@ Get-Service sshd
 New-NetFirewallRule -Name sshd -DisplayName 'OpenSSH Server (sshd)' -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 22
 
 # Permitir Log Server (puerto 5000)
-New-NetFirewallRule -Name flask_logs -DisplayName 'Music Maniac Log Server' -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 5000
+New-NetFirewallRule -Name flask_logs -DisplayName 'The Real Seb Log Server' -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 5000
 ```
 
 #### 4. Port Forwarding en Router
@@ -161,7 +161,7 @@ El amigo configura una tarea programada que ejecuta el bot al iniciar Windows:
 
 1. Abrir **Task Scheduler** (`taskschd.msc`)
 2. Crear tarea básica:
-   - Nombre: "Music Maniac Bot"
+   - Nombre: "The Real Seb Bot"
    - Trigger: Al iniciar el sistema
    - Acción: Iniciar programa
      - Programa: `python`
@@ -176,12 +176,12 @@ El amigo configura una tarea programada que ejecuta el bot al iniciar Windows:
 ```powershell
 # Descargar NSSM desde https://nssm.cc/download
 # Instalar como servicio
-nssm install MusicManiacBot "C:\Python\python.exe" "C:\path\to\maniac.py"
-nssm start MusicManiacBot
+nssm install TheRealSebBot "C:\Python\python.exe" "C:\path\to\maniac.py"
+nssm start TheRealSebBot
 
 # Ver logs del servicio
-nssm set MusicManiacBot AppStdout "C:\path\to\logs\stdout.log"
-nssm set MusicManiacBot AppStderr "C:\path\to\logs\stderr.log"
+nssm set TheRealSebBot AppStdout "C:\path\to\logs\stdout.log"
+nssm set TheRealSebBot AppStderr "C:\path\to\logs\stderr.log"
 ```
 
 ### Opción 3: PM2 (Requiere Node.js)
@@ -191,7 +191,7 @@ nssm set MusicManiacBot AppStderr "C:\path\to\logs\stderr.log"
 npm install -g pm2
 
 # Iniciar bot
-pm2 start maniac.py --interpreter python --name music-maniac
+pm2 start maniac.py --interpreter python --name the-real-seb
 
 # Guardar configuración
 pm2 save

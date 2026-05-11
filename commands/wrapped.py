@@ -1,5 +1,5 @@
 """
-Comandos Wrapped para Music Maniac bot
+Comandos Wrapped para The Real Seb bot
 Proporciona estadísticas con un resumen estilo Wrapped para usuarios
 """
 import discord

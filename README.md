@@ -197,7 +197,7 @@ La evaluación se hace en orden de prioridad (Devoted Fan tiene mayor prioridad 
 ## 📁 Estructura del Proyecto
 
 ```
-Music Maniac/
+The Real Seb/
 ├── maniac.py              # Punto de entrada principal
 ├── commands/
 │   ├── music.py           # Comandos de música

@@ -39,7 +39,7 @@ def ensure_log_file():
     os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
     if not os.path.exists(LOG_FILE):
         with open(LOG_FILE, 'w', encoding='utf-8') as f:
-            f.write(f"=== Music Maniac Bot Logs - {datetime.now().isoformat()} ===\n")
+            f.write(f"=== The Real Seb Bot Logs - {datetime.now().isoformat()} ===\n")
 
 
 @app.route('/')

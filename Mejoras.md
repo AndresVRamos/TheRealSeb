@@ -1,4 +1,4 @@
-# Mejoras Propuestas para Music Maniac
+# Mejoras Propuestas para The Real Seb
 
 ## 🚀 Mejoras de Rendimiento
 

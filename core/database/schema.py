@@ -1,5 +1,5 @@
 """
-Esquema de base de datos para el bot Music Maniac
+Esquema de base de datos para el bot The Real Seb
 Esquema normalizado con soporte para estadísticas estilo Wrapped
 """
 import sqlite3

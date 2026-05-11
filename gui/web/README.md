@@ -1,6 +1,6 @@
 # Web Dashboard
 
-Dashboard web para monitoreo y administración remota del bot Discord Music Maniac.
+Dashboard web para monitoreo y administración remota del bot Discord The Real Seb.
 
 ## Estructura
 

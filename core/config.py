@@ -1,5 +1,5 @@
 """
-Configuración centralizada del bot Music Maniac
+Configuración centralizada del bot The Real Seb
 Modifica estos valores para personalizar el comportamiento del bot
 """
 

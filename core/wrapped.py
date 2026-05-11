@@ -1,5 +1,5 @@
 """
-Generador de estadísticas Wrapped para Music Maniac bot
+Generador de estadísticas Wrapped para The Real Seb bot
 Genera embeds estilo Spotify Wrapped con estadísticas anuales
 """
 import discord

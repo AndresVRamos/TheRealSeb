@@ -1,5 +1,5 @@
 """
-Music Maniac Bot - Punto de entrada principal
+The Real Seb Bot - Punto de entrada principal
 """
 import discord
 from discord.ext import commands
