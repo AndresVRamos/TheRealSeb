@@ -119,7 +119,12 @@ async def run_bot():
                 )
             else:
                 logging.error(f"Error en slash command: {error}")
-                if not interaction.response.is_done():
+                if interaction.response.is_done():
+                    await interaction.followup.send(
+                        "⚠️ Ocurrió un error inesperado.",
+                        ephemeral=True
+                    )
+                else:
                     await interaction.response.send_message(
                         "⚠️ Ocurrió un error inesperado.",
                         ephemeral=True
