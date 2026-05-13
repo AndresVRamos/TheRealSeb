@@ -8,9 +8,8 @@ BLUE='\033[0;34m'
 NC='\033[0m' 
 
 # Obtener directorio raíz del proyecto (Ajustado para ser más robusto)
-# Si el script está en la raíz, usa SCRIPT_DIR directamente.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$SCRIPT_DIR"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 echo ""
 echo "============================================================"
@@ -63,6 +62,11 @@ fi
 echo ""
 echo -e "[3/4] Configurando entorno virtual y dependencias..."
 cd "$PROJECT_DIR"
+
+if [ -d "$SCRIPT_DIR/venv" ]; then
+    echo "      Eliminando venv mal ubicado en Setup/Linux..."
+    rm -rf "$SCRIPT_DIR/venv"
+fi
 
 # Crear venv si no existe
 if [ ! -d "venv" ]; then
