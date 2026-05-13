@@ -112,15 +112,15 @@ echo "============================================================"
 echo -e "           ${GREEN}INSTALACIÓN COMPLETADA${NC}"
 echo "============================================================"
 echo ""
-echo "Para encender el bot manualmente usa: ./venv/bin/python main.py"
+echo "Para encender el bot manualmente usa: ./venv/bin/python maniac.py"
 echo ""
 
 # ===== OPCIÓN DE INICIO =====
 read -p "¿Deseas intentar iniciar el bot ahora? (s/n): " START_NOW
 if [[ "$START_NOW" =~ ^[Ss]$ ]]; then
-    if [ -f "main.py" ]; then
-        ./venv/bin/python3 main.py
+    if [ -f "maniac.py" ]; then
+        ./venv/bin/python3 maniac.py
     else
-        echo -e "${RED}No se encontró main.py en $PROJECT_DIR${NC}"
+        echo -e "${RED}No se encontró maniac.py en $PROJECT_DIR${NC}"
     fi
 fi
