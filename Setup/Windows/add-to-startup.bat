@@ -7,8 +7,8 @@ echo           THE REAL SEB - AGREGAR AL INICIO
 echo ============================================================
 echo.
 
-:: Obtener la ruta actual del script
-set "BOT_PATH=%~dp0"
+:: Obtener la ruta del script de inicio
+set "SCRIPT_PATH=%~dp0start.bat"
 set "STARTUP_FOLDER=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
 set "SHORTCUT_NAME=The Real Seb.lnk"
 
@@ -27,7 +27,7 @@ if exist "%STARTUP_FOLDER%\%SHORTCUT_NAME%" (
 
 :: Crear acceso directo usando PowerShell
 echo Creando acceso directo en la carpeta de inicio...
-powershell -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('%STARTUP_FOLDER%\%SHORTCUT_NAME%'); $s.TargetPath = '%BOT_PATH%start.bat'; $s.WorkingDirectory = '%BOT_PATH%'; $s.WindowStyle = 7; $s.Description = 'The Real Seb Discord Bot'; $s.Save()"
+powershell -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('%STARTUP_FOLDER%\%SHORTCUT_NAME%'); $s.TargetPath = '%SCRIPT_PATH%'; $s.WorkingDirectory = '%~dp0'; $s.WindowStyle = 7; $s.Description = 'The Real Seb Discord Bot'; $s.Save()"
 
 if %errorlevel% neq 0 (
     echo [ERROR] No se pudo crear el acceso directo.
@@ -42,6 +42,6 @@ echo El bot se iniciara automaticamente cuando enciendas Windows.
 echo.
 echo Ubicacion: %STARTUP_FOLDER%\%SHORTCUT_NAME%
 echo.
-echo Para removerlo, ejecuta remove-from-startup.bat
+echo Para removerlo, ejecuta Setup\Windows\remove-from-startup.bat
 echo.
 pause
