@@ -35,7 +35,7 @@ fi
 
 # Iniciar el bot
 echo "Iniciando The Real Seb..."
-python3 "$PROJECT_DIR/maniac.py"
+"$PROJECT_DIR/venv/bin/python3" "$PROJECT_DIR/maniac.py"
 
 # Si llegamos aquí, el bot se detuvo
 echo ""
