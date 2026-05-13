@@ -19,10 +19,88 @@ Bot de música para Discord con soporte para YouTube y Spotify, controles avanza
 
 ## 📦 Instalación
 
+### Windows (Automático)
+
 1. Clona el repositorio:
 ```bash
 git clone https://github.com/AndresVRamos/TheRealSeb
-cd therealseb
+cd TheRealSeb
+```
+
+2. Ejecuta el instalador:
+```
+Setup\Windows\install.bat
+```
+
+El instalador automáticamente:
+- Verifica e instala Python (via winget si es necesario)
+- Verifica e instala FFmpeg (via winget si es necesario)
+- Instala las dependencias de Python
+- Crea el archivo `.env` desde `.env.example`
+- Ofrece opciones para iniciar el bot y/o agregarlo al inicio de Windows
+
+### Windows (Scripts adicionales)
+
+| Script | Descripción |
+|--------|-------------|
+| `Setup\Windows\start.bat` | Inicia el bot en segundo plano |
+| `Setup\Windows\add-to-startup.bat` | Agrega el bot al inicio de Windows |
+| `Setup\Windows\remove-from-startup.bat` | Remueve el bot del inicio de Windows |
+
+### Linux (Automático)
+
+1. Clona el repositorio:
+```bash
+git clone https://github.com/AndresVRamos/TheRealSeb
+cd TheRealSeb
+```
+
+2. Ejecuta el instalador:
+```bash
+chmod +x Setup/Linux/install.sh
+./Setup/Linux/install.sh
+```
+
+El instalador detecta automáticamente tu gestor de paquetes (apt, dnf, pacman, zypper) e instala Python, FFmpeg y las dependencias.
+
+### Linux (Scripts adicionales)
+
+| Script | Descripción |
+|--------|-------------|
+| `Setup/Linux/start.sh` | Inicia el bot en segundo plano |
+| `Setup/Linux/add-to-startup.sh` | Agrega el bot al inicio del sistema (systemd) |
+| `Setup/Linux/remove-from-startup.sh` | Remueve el bot del inicio del sistema |
+
+### macOS (Automático)
+
+1. Clona el repositorio:
+```bash
+git clone https://github.com/AndresVRamos/TheRealSeb
+cd TheRealSeb
+```
+
+2. Ejecuta el instalador:
+```bash
+chmod +x Setup/Mac/install.sh
+./Setup/Mac/install.sh
+```
+
+El instalador verifica e instala Homebrew, Python, FFmpeg y las dependencias automáticamente.
+
+### macOS (Scripts adicionales)
+
+| Script | Descripción |
+|--------|-------------|
+| `Setup/Mac/start.sh` | Inicia el bot |
+| `Setup/Mac/add-to-startup.sh` | Agrega el bot al inicio del sistema (launchd) |
+| `Setup/Mac/remove-from-startup.sh` | Remueve el bot del inicio del sistema |
+
+### Manual (otros)
+
+1. Clona el repositorio:
+```bash
+git clone https://github.com/AndresVRamos/TheRealSeb
+cd TheRealSeb
 ```
 
 2. Instala las dependencias:
@@ -38,7 +116,10 @@ SPOTIPY_CLIENT_SECRET=TU_CLIENT_SECRET_DE_SPOTIFY
 GENIUS_API_KEY=TU_API_KEY_DE_GENIUS
 ```
 
-> **Nota:** La API de Genius es opcional pero mejora significativamente la búsqueda de letras. Puedes obtener una API key gratis en [genius.com/api-clients](https://genius.com/api-clients).
+> **Cómo obtener las credenciales:**
+> - **Discord (obligatorio):** Crea una aplicación en [discord.com/developers/applications](https://discord.com/developers/applications), ve a "Bot" y copia el token
+> - **Spotify (opcional):** Obtén credenciales gratis en [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard)
+> - **Genius (opcional):** Obtén una API key gratis en [genius.com/api-clients](https://genius.com/api-clients)
 
 4. Ejecuta el bot:
 ```bash
