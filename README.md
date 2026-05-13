@@ -39,7 +39,7 @@ El instalador automáticamente:
 - Crea el archivo `.env` desde `.env.example`
 - Ofrece opciones para iniciar el bot y/o agregarlo al inicio de Windows
 
-### Windows (Scripts adicionales)
+#### Scripts adicionales
 
 | Script | Descripción |
 |--------|-------------|
@@ -63,7 +63,7 @@ chmod +x Setup/Linux/install.sh
 
 El instalador detecta automáticamente tu gestor de paquetes (apt, dnf, pacman, zypper) e instala Python, FFmpeg y las dependencias.
 
-### Linux (Scripts adicionales)
+#### Scripts adicionales
 
 | Script | Descripción |
 |--------|-------------|
@@ -87,7 +87,7 @@ chmod +x Setup/Mac/install.sh
 
 El instalador verifica e instala Homebrew, Python, FFmpeg y las dependencias automáticamente.
 
-### macOS (Scripts adicionales)
+#### Scripts adicionales
 
 | Script | Descripción |
 |--------|-------------|
@@ -95,7 +95,7 @@ El instalador verifica e instala Homebrew, Python, FFmpeg y las dependencias aut
 | `Setup/Mac/add-to-startup.sh` | Agrega el bot al inicio del sistema (launchd) |
 | `Setup/Mac/remove-from-startup.sh` | Remueve el bot del inicio del sistema |
 
-### Manual (otros)
+### Manual
 
 1. Clona el repositorio:
 ```bash
