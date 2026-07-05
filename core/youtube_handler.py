@@ -8,7 +8,7 @@ import re
 import logging
 import asyncio
 
-from core.config import SEARCH_SUFFIX
+from core.config import SEARCH_SUFFIX, YOUTUBE_COOKIES_BROWSER
 
 
 YOUTUBE_BASE_URL = 'https://www.youtube.com/'
@@ -51,6 +51,8 @@ def create_ytdl():
         "geo_bypass": True,
         "age_limit": None,
     }
+    if YOUTUBE_COOKIES_BROWSER:
+        yt_dl_options["cookiesfrombrowser"] = (YOUTUBE_COOKIES_BROWSER,)
     return yt_dlp.YoutubeDL(yt_dl_options)
 
 
@@ -284,6 +286,8 @@ async def get_mix_playlist_videos(mix_url: str, original_video_id: str, limit: i
             'logger': YTDLLogger(),
             'playlistend': limit + 5,  # Extra por si filtramos algunos
         }
+        if YOUTUBE_COOKIES_BROWSER:
+            ydl_opts["cookiesfrombrowser"] = (YOUTUBE_COOKIES_BROWSER,)
 
         loop = asyncio.get_event_loop()
 
@@ -345,6 +349,8 @@ async def _get_related_from_video(url: str, limit: int) -> list:
                 }
             },
         }
+        if YOUTUBE_COOKIES_BROWSER:
+            ydl_opts["cookiesfrombrowser"] = (YOUTUBE_COOKIES_BROWSER,)
 
         loop = asyncio.get_event_loop()
 

@@ -629,9 +629,15 @@ class MusicCommands(commands.Cog):
 
     @commands.Cog.listener()
     async def on_command(self, ctx):
-        """Guardar el último canal de texto usado para cada servidor"""
+        """Guardar el último canal de texto usado para comandos de prefijo"""
         if ctx.guild:
             self.last_text_channel[ctx.guild.id] = ctx.channel
+
+    @commands.Cog.listener()
+    async def on_app_command_completion(self, interaction: discord.Interaction, command: app_commands.Command):
+        """Guardar el último canal de texto usado para slash commands"""
+        if interaction.guild:
+            self.last_text_channel[interaction.guild.id] = interaction.channel
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):

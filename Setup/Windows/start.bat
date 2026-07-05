@@ -13,6 +13,14 @@ if not exist "%PROJECT_DIR%\.env" (
     exit /b 1
 )
 
+:: Auto-actualizar desde GitHub
+echo Buscando actualizaciones...
+git pull origin main
+if %errorlevel% neq 0 (
+    echo [WARN] No se pudo actualizar. Continuando con version actual...
+)
+echo.
+
 :: Iniciar el bot
 echo Iniciando The Real Seb...
 start "" pythonw "%PROJECT_DIR%\main.pyw"

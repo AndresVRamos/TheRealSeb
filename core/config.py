@@ -126,6 +126,12 @@ FUTURE_RESULT_TIMEOUT = 5
 # El bot usa backoff exponencial (1s, 2s, 6s, 24s...) hasta este máximo
 MAX_RECONNECT_DELAY = 60.0
 
+# === YOUTUBE COOKIES ===
+# Navegador del cual extraer cookies para videos con restricción de edad
+# Opciones: "brave", "chrome", "chromium", "edge", "firefox", "opera", "safari", "vivaldi"
+# Dejar None para desactivar (algunos videos no funcionarán)
+YOUTUBE_COOKIES_BROWSER = None
+
 # === SLASH COMMANDS ===
 # ID del servidor para sync de desarrollo (instantáneo)
 # Cambiar a None para sync global (tarda hasta 1 hora)
