@@ -33,6 +33,15 @@ if ! command -v ffmpeg &> /dev/null; then
     exit 1
 fi
 
+# Auto-actualizar desde GitHub
+echo "Buscando actualizaciones..."
+if git pull origin main; then
+    echo -e "${GREEN}[OK] Repositorio actualizado${NC}"
+else
+    echo -e "${RED}[WARN] No se pudo actualizar. Continuando con version actual...${NC}"
+fi
+echo ""
+
 # Iniciar el bot
 echo "Iniciando The Real Seb..."
 "$PROJECT_DIR/venv/bin/python3" "$PROJECT_DIR/maniac.py"
