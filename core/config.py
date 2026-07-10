@@ -3,6 +3,10 @@ Configuración centralizada del bot The Real Seb
 Modifica estos valores para personalizar el comportamiento del bot
 """
 
+# === VERSIÓN ===
+VERSION = "1.0.0"
+GITHUB_REPO = "AndresVRamos/TheRealSeb"
+
 # === BOT ===
 # Prefijo para comandos de texto (ej: .play, !play)
 BOT_PREFIX = "."

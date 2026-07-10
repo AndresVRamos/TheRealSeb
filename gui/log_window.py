@@ -109,6 +109,9 @@ class LogWindow:
         self.icon = None
         self.is_visible = False
         self.pending_action = None
+        self._update_available = False
+        self._update_version = ""
+        self._update_url = ""
 
     def create_image(self):
         """Crear un icono simple para el system tray"""
@@ -246,11 +249,38 @@ class LogWindow:
         if self.window:
             self.window.after(100, self.check_pending_actions)
 
+    def open_update_page(self, icon=None, item=None):
+        """Abrir la página de releases para descargar la actualización"""
+        if self._update_url:
+            webbrowser.open(self._update_url)
+
+    def notify_update(self, version: str, url: str):
+        """Llamado desde el updater cuando hay una versión nueva disponible"""
+        self._update_available = True
+        self._update_version = version
+        self._update_url = url
+        if self.icon:
+            try:
+                self.icon.notify(
+                    f"Versión {version} disponible. Abrí el menú del tray para descargar.",
+                    "The Real Seb — Actualización disponible"
+                )
+            except Exception:
+                pass
+            self.icon.update_menu()
+
     def setup_tray_icon(self):
         image = self.create_image()
         menu = pystray.Menu(
             pystray.MenuItem("Abrir Dashboard", self.open_dashboard, default=True),
             pystray.MenuItem("Mostrar/Ocultar Logs", self.toggle_window),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem(
+                lambda item: f"🔔 Actualización disponible: v{self._update_version}",
+                self.open_update_page,
+                visible=lambda item: self._update_available
+            ),
+            pystray.Menu.SEPARATOR,
             pystray.MenuItem("Salir", self.quit_app)
         )
         self.icon = pystray.Icon("TheRealSeb", image, "The Real Seb Bot", menu)
