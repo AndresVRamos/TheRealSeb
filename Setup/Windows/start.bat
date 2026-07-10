@@ -13,13 +13,16 @@ if not exist "%PROJECT_DIR%\.env" (
     exit /b 1
 )
 
-:: Auto-actualizar desde GitHub
-echo Buscando actualizaciones...
-git pull origin main
-if %errorlevel% neq 0 (
-    echo [WARN] No se pudo actualizar. Continuando con version actual...
+:: Auto-actualizar desde GitHub (solo si el directorio es un repositorio git)
+git -C "%PROJECT_DIR%" rev-parse --git-dir >nul 2>&1
+if %errorlevel% equ 0 (
+    echo Buscando actualizaciones...
+    git -C "%PROJECT_DIR%" pull origin main
+    if %errorlevel% neq 0 (
+        echo [WARN] No se pudo actualizar. Continuando con version actual...
+    )
+    echo.
 )
-echo.
 
 :: Iniciar el bot
 echo Iniciando The Real Seb...

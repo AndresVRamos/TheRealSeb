@@ -1,0 +1,84 @@
+name: Build Installer
+
+on:
+  push:
+    tags:
+      - 'v*'           # Dispara al pushear v1.0.0, v1.2.3, etc.
+  workflow_dispatch:    # También permite correrlo manualmente desde GitHub
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Instalar Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Extraer versión del tag
+        id: version
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_name }}" -match "^v(.+)$") {
+            $ver = $Matches[1]
+          } else {
+            $ver = "dev"
+          }
+          echo "VERSION=$ver" >> $env:GITHUB_OUTPUT
+          echo "Version: $ver"
+
+      - name: Actualizar versión en el .iss
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.version.outputs.VERSION }}"
+          $file = "Setup\Windows\TheRealSeb.iss"
+          (Get-Content $file) `
+            -replace '#define MyAppVersion\s+"[^"]+"', "#define MyAppVersion `"$ver`"" |
+          Set-Content $file
+          echo "Version actualizada a $ver en el .iss"
+
+      - name: Compilar instalador
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          & $iscc "Setup\Windows\TheRealSeb.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Error al compilar el instalador" }
+
+      - name: Verificar que el .exe fue generado
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem "dist\*.exe" | Select-Object -First 1
+          if (-not $exe) { throw "No se encontró el .exe en dist\" }
+          echo "Instalador generado: $($exe.Name) ($([math]::Round($exe.Length/1MB, 2)) MB)"
+
+      - name: Crear GitHub Release y subir instalador
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "The Real Seb v${{ steps.version.outputs.VERSION }}"
+          body: |
+            ## Instalación en Windows
+
+            1. Descargá `TheRealSeb-Setup-${{ steps.version.outputs.VERSION }}.exe`
+            2. Ejecutalo y seguí el asistente
+
+            El instalador verifica automáticamente si Python y FFmpeg están instalados,
+            con botones para instalarlos si faltan.
+
+            ### Requisitos
+            - Windows 10/11
+            - Python 3.8+ (el instalador te guía si no lo tenés)
+            - FFmpeg (el instalador te guía si no lo tenés)
+
+            ### Linux / macOS
+            ```bash
+            # Linux
+            curl -sSL https://raw.githubusercontent.com/AndresVRamos/TheRealSeb/main/Setup/Linux/bootstrap.sh | bash
+
+            # macOS
+            curl -sSL https://raw.githubusercontent.com/AndresVRamos/TheRealSeb/main/Setup/Mac/bootstrap.sh | bash
+            ```
+          files: dist/TheRealSeb-Setup-*.exe
+          draft: false
+          prerelease: false
