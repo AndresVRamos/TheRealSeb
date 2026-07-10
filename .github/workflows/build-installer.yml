@@ -69,16 +69,16 @@ jobs:
           body: |
             ## Instalación en Windows
 
-            1. Descargá `TheRealSeb-Setup-${{ steps.version.outputs.VERSION }}.exe`
-            2. Ejecutalo y seguí el asistente
+            1. Descarga `TheRealSeb-Setup-${{ steps.version.outputs.VERSION }}.exe`
+            2. Ejecútalo y sigue el asistente
 
             El instalador verifica automáticamente si Python y FFmpeg están instalados,
             con botones para instalarlos si faltan.
 
             ### Requisitos
             - Windows 10/11
-            - Python 3.8+ (el instalador te guía si no lo tenés)
-            - FFmpeg (el instalador te guía si no lo tenés)
+            - Python 3.8+ (el instalador te guía si no lo tienes)
+            - FFmpeg (el instalador te guía si no lo tienes)
 
             ### Linux / macOS
             ```bash
