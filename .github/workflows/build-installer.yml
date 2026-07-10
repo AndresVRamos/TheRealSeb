@@ -29,15 +29,22 @@ jobs:
           echo "VERSION=$ver" >> $env:GITHUB_OUTPUT
           echo "Version: $ver"
 
-      - name: Actualizar versión en el .iss
+      - name: Actualizar versión en el .iss y config.py
         shell: pwsh
         run: |
           $ver = "${{ steps.version.outputs.VERSION }}"
-          $file = "Setup\Windows\TheRealSeb.iss"
-          (Get-Content $file) `
+
+          $iss = "Setup\Windows\TheRealSeb.iss"
+          (Get-Content $iss) `
             -replace '#define MyAppVersion\s+"[^"]+"', "#define MyAppVersion `"$ver`"" |
-          Set-Content $file
-          echo "Version actualizada a $ver en el .iss"
+          Set-Content $iss
+
+          $cfg = "core\config.py"
+          (Get-Content $cfg) `
+            -replace 'VERSION\s*=\s*"[^"]+"', "VERSION = `"$ver`"" |
+          Set-Content $cfg
+
+          echo "Versión actualizada a $ver en .iss y config.py"
 
       - name: Compilar instalador
         shell: pwsh

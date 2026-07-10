@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 
 from gui.log_window import LogWindow
 from core.config import WRAPPED_ENABLED, SLASH_COMMANDS_GUILD_ID, MAX_RECONNECT_DELAY, BOT_PREFIX
+from core.updater import check_for_updates
 
 # Importar dashboard web (con manejo de errores si no está disponible)
 try:
@@ -64,6 +65,7 @@ async def run_bot():
     @bot.event
     async def on_ready():
         logging.info(f'{bot.user} is now jamming')
+        asyncio.create_task(check_for_updates(log_window.notify_update))
         # Sincronizar slash commands
         try:
             if SLASH_COMMANDS_GUILD_ID:
