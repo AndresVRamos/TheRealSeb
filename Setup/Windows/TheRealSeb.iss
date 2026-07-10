@@ -25,6 +25,9 @@ AllowNoIcons=yes
 OutputDir=..\..\dist
 OutputBaseFilename=TheRealSeb-Setup-{#MyAppVersion}
 
+SetupIconFile=icon.ico
+UninstallDisplayIcon={app}\icon.ico
+
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -41,6 +44,7 @@ Name: "startup";   Description: "Iniciar {#MyAppName} automáticamente con Windo
 Name: "launchbot"; Description: "Iniciar el bot al finalizar la instalación";        GroupDescription: "Opciones adicionales:"; Flags: unchecked
 
 [Files]
+Source: "icon.ico";                DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\maniac.py";         DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\main.pyw";          DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\requirements.txt";  DestDir: "{app}"; Flags: ignoreversion
@@ -54,11 +58,11 @@ Source: "add-to-startup.bat";      DestDir: "{app}\Setup\Windows"; Flags: ignore
 Source: "remove-from-startup.bat"; DestDir: "{app}\Setup\Windows"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\Iniciar {#MyAppName}";          Filename: "{app}\Setup\Windows\start.bat";               WorkingDir: "{app}"
-Name: "{group}\Agregar al inicio de Windows";  Filename: "{app}\Setup\Windows\add-to-startup.bat";      WorkingDir: "{app}"
-Name: "{group}\Remover del inicio de Windows"; Filename: "{app}\Setup\Windows\remove-from-startup.bat"; WorkingDir: "{app}"
+Name: "{group}\Iniciar {#MyAppName}";          Filename: "{app}\Setup\Windows\start.bat";               IconFilename: "{app}\icon.ico"; WorkingDir: "{app}"
+Name: "{group}\Agregar al inicio de Windows";  Filename: "{app}\Setup\Windows\add-to-startup.bat";      IconFilename: "{app}\icon.ico"; WorkingDir: "{app}"
+Name: "{group}\Remover del inicio de Windows"; Filename: "{app}\Setup\Windows\remove-from-startup.bat"; IconFilename: "{app}\icon.ico"; WorkingDir: "{app}"
 Name: "{group}\Configuración (.env)";          Filename: "{app}\.env";                                  WorkingDir: "{app}"
-Name: "{group}\Desinstalar {#MyAppName}";      Filename: "{uninstallexe}"
+Name: "{group}\Desinstalar {#MyAppName}";      Filename: "{uninstallexe}";                              IconFilename: "{app}\icon.ico"
 
 [Run]
 Filename: "cmd.exe"; \
