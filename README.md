@@ -19,49 +19,46 @@ Bot de música para Discord con soporte para YouTube y Spotify, controles avanza
 
 ## 📦 Instalación
 
-### Windows (Automático)
+### Windows (Instalador .exe) — Recomendado
 
-1. Clona el repositorio:
-```bash
-git clone https://github.com/AndresVRamos/TheRealSeb
-cd TheRealSeb
-```
-
-2. Ejecuta el instalador:
-```
-Setup\Windows\install.bat
-```
+1. Descarga `TheRealSeb-Setup-x.x.x.exe` desde la sección [Releases](https://github.com/AndresVRamos/TheRealSeb/releases)
+2. Ejecútalo y sigue el asistente de instalación
 
 El instalador automáticamente:
-- Verifica e instala Python (via winget si es necesario)
-- Verifica e instala FFmpeg (via winget si es necesario)
+- Verifica que Python esté instalado (muestra instrucciones si no lo está)
+- Advierte si FFmpeg no está disponible
 - Instala las dependencias de Python
 - Crea el archivo `.env` desde `.env.example`
-- Ofrece opciones para iniciar el bot y/o agregarlo al inicio de Windows
+- Ofrece agregar el bot al inicio de Windows y/o iniciarlo al terminar
 
-#### Scripts adicionales
+> **Requisito previo:** Python 3.8+ instalado con "Add Python to PATH" marcado.
+> Si no lo tenés: `winget install Python.Python.3.12`
+>
+> **Para audio (obligatorio):** `winget install Gyan.FFmpeg` y reiniciar.
 
-| Script | Descripción |
-|--------|-------------|
-| `Setup\Windows\start.bat` | Inicia el bot en segundo plano |
-| `Setup\Windows\add-to-startup.bat` | Agrega el bot al inicio de Windows |
-| `Setup\Windows\remove-from-startup.bat` | Remueve el bot del inicio de Windows |
+#### Scripts disponibles después de instalar
 
-### Linux (Automático)
+| Acceso directo / Script | Descripción |
+|------------------------|-------------|
+| Menú Inicio → *Iniciar The Real Seb* | Inicia el bot |
+| Menú Inicio → *Agregar al inicio de Windows* | Inicia el bot con Windows |
+| Menú Inicio → *Remover del inicio de Windows* | Deshabilita el inicio automático |
+| Menú Inicio → *Configuración (.env)* | Abre la configuración en Notepad |
 
-1. Clona el repositorio:
+#### Compilar el instalador (para desarrolladores)
+
+1. Instala [Inno Setup 6](https://jrsoftware.org/isinfo.php)
+2. Abre `Setup\Windows\TheRealSeb.iss` con Inno Setup
+3. Presiona **Build → Compile** — el `.exe` se genera en `dist\`
+
+### Linux (Sin git)
+
 ```bash
-git clone https://github.com/AndresVRamos/TheRealSeb
-cd TheRealSeb
+curl -sSL https://raw.githubusercontent.com/AndresVRamos/TheRealSeb/main/Setup/Linux/bootstrap.sh | bash
 ```
 
-2. Ejecuta el instalador:
-```bash
-chmod +x Setup/Linux/install.sh
-./Setup/Linux/install.sh
-```
-
-El instalador detecta automáticamente tu gestor de paquetes (apt, dnf, pacman, zypper) e instala Python, FFmpeg y las dependencias.
+El script descarga el bot, lo extrae en `~/TheRealSeb` y ejecuta el instalador automáticamente.
+Detecta `apt`, `dnf` y `pacman` para instalar Python y FFmpeg.
 
 #### Scripts adicionales
 
@@ -71,21 +68,13 @@ El instalador detecta automáticamente tu gestor de paquetes (apt, dnf, pacman, 
 | `Setup/Linux/add-to-startup.sh` | Agrega el bot al inicio del sistema (systemd) |
 | `Setup/Linux/remove-from-startup.sh` | Remueve el bot del inicio del sistema |
 
-### macOS (Automático)
+### macOS (Sin git)
 
-1. Clona el repositorio:
 ```bash
-git clone https://github.com/AndresVRamos/TheRealSeb
-cd TheRealSeb
+curl -sSL https://raw.githubusercontent.com/AndresVRamos/TheRealSeb/main/Setup/Mac/bootstrap.sh | bash
 ```
 
-2. Ejecuta el instalador:
-```bash
-chmod +x Setup/Mac/install.sh
-./Setup/Mac/install.sh
-```
-
-El instalador verifica e instala Homebrew, Python, FFmpeg y las dependencias automáticamente.
+El script descarga el bot, lo extrae en `~/TheRealSeb` y ejecuta el instalador. Instala Homebrew, Python y FFmpeg automáticamente.
 
 #### Scripts adicionales
 
