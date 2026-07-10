@@ -264,13 +264,32 @@ class LogWindow:
         self._update_url = url
         self._update_download_url = download_url or ""
         self._update_filename = filename or ""
+
+        msg = (
+            f"Versión {version} disponible. Haz clic en 'Actualizar ahora' en el menú del tray."
+            if download_url else
+            f"Versión {version} disponible. Abre el menú del tray para más información."
+        )
+
+        def _show_toast():
+            try:
+                from winotify import Notification
+                toast = Notification(
+                    app_id="The Real Seb",
+                    title="Actualización disponible",
+                    msg=msg,
+                    duration="long"
+                )
+                if url:
+                    toast.add_actions(label="Ver release", launch=url)
+                toast.show()
+            except Exception:
+                pass
+
+        threading.Thread(target=_show_toast, daemon=True).start()
+
         if self.icon:
             try:
-                msg = (
-                    f"Versión {version} disponible. Haz clic en 'Actualizar ahora' en el menú del tray."
-                    if download_url else
-                    f"Versión {version} disponible. Abre el menú del tray para más información."
-                )
                 self.icon.notify(msg, "The Real Seb — Actualización disponible")
             except Exception:
                 pass
