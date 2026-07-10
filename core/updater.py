@@ -111,7 +111,7 @@ async def check_for_updates(notify_fn=None):
         logging.warning("=" * 60)
         logging.warning(f"  ACTUALIZACIÓN DISPONIBLE: v{latest_version}  (actual: v{VERSION})")
         if download_url:
-            logging.warning("  Hacé click en 'Actualizar ahora' en el menú del tray.")
+            logging.warning("  Haz clic en 'Actualizar ahora' en el menú del tray.")
         else:
             logging.warning(f"  Descargá manualmente en: {release_url}")
         logging.warning("=" * 60)

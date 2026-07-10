@@ -267,9 +267,9 @@ class LogWindow:
         if self.icon:
             try:
                 msg = (
-                    f"Versión {version} disponible. Hacé click en 'Actualizar ahora' en el menú del tray."
+                    f"Versión {version} disponible. Haz clic en 'Actualizar ahora' en el menú del tray."
                     if download_url else
-                    f"Versión {version} disponible. Abrí el menú del tray para más info."
+                    f"Versión {version} disponible. Abre el menú del tray para más información."
                 )
                 self.icon.notify(msg, "The Real Seb — Actualización disponible")
             except Exception:
