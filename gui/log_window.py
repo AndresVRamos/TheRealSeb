@@ -110,8 +110,11 @@ class LogWindow:
         self.is_visible = False
         self.pending_action = None
         self._update_available = False
+        self._update_installing = False
         self._update_version = ""
         self._update_url = ""
+        self._update_download_url = ""
+        self._update_filename = ""
 
     def create_image(self):
         """Crear un icono simple para el system tray"""
@@ -254,20 +257,33 @@ class LogWindow:
         if self._update_url:
             webbrowser.open(self._update_url)
 
-    def notify_update(self, version: str, url: str):
+    def notify_update(self, version: str, url: str, download_url: str = None, filename: str = None):
         """Llamado desde el updater cuando hay una versión nueva disponible"""
         self._update_available = True
         self._update_version = version
         self._update_url = url
+        self._update_download_url = download_url or ""
+        self._update_filename = filename or ""
         if self.icon:
             try:
-                self.icon.notify(
-                    f"Versión {version} disponible. Abrí el menú del tray para descargar.",
-                    "The Real Seb — Actualización disponible"
+                msg = (
+                    f"Versión {version} disponible. Hacé click en 'Actualizar ahora' en el menú del tray."
+                    if download_url else
+                    f"Versión {version} disponible. Abrí el menú del tray para más info."
                 )
+                self.icon.notify(msg, "The Real Seb — Actualización disponible")
             except Exception:
                 pass
             self.icon.update_menu()
+
+    def _install_update(self, icon=None, item=None):
+        """Dispara la descarga e instalación silenciosa"""
+        if self._update_installing or not self._update_download_url:
+            return
+        self._update_installing = True
+        self.icon.update_menu()
+        from core.updater import start_install
+        start_install(self._update_download_url, self._update_filename)
 
     def setup_tray_icon(self):
         image = self.create_image()
@@ -275,10 +291,21 @@ class LogWindow:
             pystray.MenuItem("Abrir Dashboard", self.open_dashboard, default=True),
             pystray.MenuItem("Mostrar/Ocultar Logs", self.toggle_window),
             pystray.Menu.SEPARATOR,
+            # Botón de instalación silenciosa (visible solo si hay update con .exe disponible)
             pystray.MenuItem(
-                lambda item: f"🔔 Actualización disponible: v{self._update_version}",
+                lambda item: (
+                    "Instalando... esperá" if self._update_installing
+                    else f"🔔 Actualizar ahora a v{self._update_version}"
+                ),
+                self._install_update,
+                visible=lambda item: self._update_available and bool(self._update_download_url),
+                enabled=lambda item: not self._update_installing
+            ),
+            # Fallback: abrir releases en el navegador si no hay .exe disponible
+            pystray.MenuItem(
+                lambda item: f"🔔 Ver actualización v{self._update_version}",
                 self.open_update_page,
-                visible=lambda item: self._update_available
+                visible=lambda item: self._update_available and not bool(self._update_download_url)
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Salir", self.quit_app)
