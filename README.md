@@ -32,7 +32,7 @@ El instalador automáticamente:
 - Ofrece agregar el bot al inicio de Windows y/o iniciarlo al terminar
 
 > **Requisito previo:** Python 3.8+ instalado con "Add Python to PATH" marcado.
-> Si no lo tenés: `winget install Python.Python.3.12`
+> Si no lo tienes: `winget install Python.Python.3.12`
 >
 > **Para audio (obligatorio):** `winget install Gyan.FFmpeg` y reiniciar.
 
