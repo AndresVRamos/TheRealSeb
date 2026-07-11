@@ -118,7 +118,6 @@ class LogWindow:
 
     def create_image(self):
         """Cargar el icono del system tray desde archivo"""
-        # Intentar cargar icon.ico desde Setup/Windows
         try:
             # Obtener directorio raíz del proyecto
             if getattr(sys, 'frozen', False):
@@ -126,13 +125,18 @@ class LogWindow:
             else:
                 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-            icon_path = os.path.join(base_dir, 'Setup', 'Windows', 'icon.ico')
+            # Buscar icon.ico en diferentes ubicaciones
+            possible_paths = [
+                os.path.join(base_dir, 'icon.ico'),  # Instalado (raíz)
+                os.path.join(base_dir, 'Setup', 'Windows', 'icon.ico'),  # Desarrollo
+            ]
 
-            if os.path.exists(icon_path):
-                image = Image.open(icon_path)
-                # Redimensionar a 64x64 para el tray
-                image = image.resize((64, 64), Image.Resampling.LANCZOS)
-                return image
+            for icon_path in possible_paths:
+                if os.path.exists(icon_path):
+                    image = Image.open(icon_path)
+                    # Redimensionar a 64x64 para el tray
+                    image = image.resize((64, 64), Image.Resampling.LANCZOS)
+                    return image
         except Exception:
             pass
 
