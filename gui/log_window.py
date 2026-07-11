@@ -117,7 +117,26 @@ class LogWindow:
         self._update_filename = ""
 
     def create_image(self):
-        """Crear un icono simple para el system tray"""
+        """Cargar el icono del system tray desde archivo"""
+        # Intentar cargar icon.ico desde Setup/Windows
+        try:
+            # Obtener directorio raíz del proyecto
+            if getattr(sys, 'frozen', False):
+                base_dir = os.path.dirname(sys.executable)
+            else:
+                base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+            icon_path = os.path.join(base_dir, 'Setup', 'Windows', 'icon.ico')
+
+            if os.path.exists(icon_path):
+                image = Image.open(icon_path)
+                # Redimensionar a 64x64 para el tray
+                image = image.resize((64, 64), Image.Resampling.LANCZOS)
+                return image
+        except Exception:
+            pass
+
+        # Fallback: crear icono simple si no se encuentra el archivo
         width = 64
         height = 64
         color1 = (0, 120, 212)  # Azul
@@ -327,9 +346,28 @@ class LogWindow:
                 visible=lambda item: self._update_available and not bool(self._update_download_url)
             ),
             pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Reiniciar", self.restart_app),
             pystray.MenuItem("Salir", self.quit_app)
         )
         self.icon = pystray.Icon("TheRealSeb", image, "The Real Seb Bot", menu)
+
+    def restart_app(self, icon=None, item=None):
+        """Reiniciar el bot"""
+        import subprocess
+        if self.icon:
+            self.icon.stop()
+        if self.window:
+            self.window.quit()
+
+        # Obtener el comando para reiniciar
+        if getattr(sys, 'frozen', False):
+            # Ejecutable empaquetado
+            subprocess.Popen([sys.executable])
+        else:
+            # Script de Python
+            subprocess.Popen([sys.executable] + sys.argv)
+
+        os._exit(0)
 
     def quit_app(self, icon=None, item=None):
         if self.icon:
