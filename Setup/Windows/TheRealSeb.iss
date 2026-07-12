@@ -71,7 +71,7 @@ Filename: "cmd.exe"; \
     Flags: runhidden waituntilterminated
 
 [UninstallRun]
-RunOnceId: "removestartup"; Filename: "{app}\Setup\Windows\remove-from-startup.bat"; Flags: runhidden waituntilterminated
+RunOnceId: "removestartup"; Filename: "{app}\Setup\Windows\remove-from-startup.bat"; Parameters: "/silent"; Flags: runhidden waituntilterminated
 
 ; ============================================================
 ;  PASCAL SCRIPT
