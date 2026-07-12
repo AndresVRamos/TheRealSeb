@@ -70,11 +70,6 @@ Filename: "cmd.exe"; \
     StatusMsg: "Instalando dependencias de Python (puede tardar 1-2 minutos)..."; \
     Flags: runhidden waituntilterminated
 
-Filename: "notepad.exe"; \
-    Parameters: """{app}\.env"""; \
-    Description: "Abrir archivo de configuración (.env) para ingresar el Token de Discord"; \
-    Flags: postinstall nowait skipifsilent unchecked
-
 [UninstallRun]
 RunOnceId: "removestartup"; Filename: "{app}\Setup\Windows\remove-from-startup.bat"; Flags: runhidden waituntilterminated
 
@@ -90,6 +85,13 @@ var
   PyBtn:        TNewButton;
   FfBtn:        TNewButton;
   RefreshBtn:   TNewButton;
+
+  // Pagina de configuracion de tokens
+  ConfigPage:          TWizardPage;
+  DiscordTokenEdit:    TNewEdit;
+  SpotifyIdEdit:       TNewEdit;
+  SpotifySecretEdit:   TNewEdit;
+  GeniusKeyEdit:       TNewEdit;
 
 // ------------------------------------------------------------------
 //  Detección de dependencias
@@ -221,6 +223,154 @@ begin
 end;
 
 // ------------------------------------------------------------------
+//  Leer valor de una variable del archivo .env existente
+// ------------------------------------------------------------------
+
+function ReadEnvValue(EnvFile, VarName: String): String;
+var
+  Lines: TArrayOfString;
+  i: Integer;
+  Line, Prefix: String;
+begin
+  Result := '';
+  if not FileExists(EnvFile) then Exit;
+
+  if LoadStringsFromFile(EnvFile, Lines) then
+  begin
+    Prefix := VarName + '=';
+    for i := 0 to GetArrayLength(Lines) - 1 do
+    begin
+      Line := Trim(Lines[i]);
+      // Ignorar comentarios y lineas vacias
+      if (Length(Line) > 0) and (Line[1] <> '#') then
+      begin
+        if Pos(Prefix, Line) = 1 then
+        begin
+          Result := Copy(Line, Length(Prefix) + 1, Length(Line));
+          // No devolver placeholders
+          if (Pos('YOUR_', Result) = 1) or (Pos('_HERE', Result) > 0) then
+            Result := '';
+          Exit;
+        end;
+      end;
+    end;
+  end;
+end;
+
+// ------------------------------------------------------------------
+//  Crear página de configuración de tokens
+// ------------------------------------------------------------------
+
+procedure CreateConfigPage();
+var
+  Lbl: TLabel;
+  y: Integer;
+  EnvFile: String;
+begin
+  ConfigPage := CreateCustomPage(
+    PrereqPage.ID,
+    'Configuración de credenciales',
+    'Ingresá tus tokens y claves de API. Solo el Token de Discord es obligatorio.'
+  );
+
+  y := 8;
+
+  // ---- Discord Token ----
+  Lbl := TLabel.Create(ConfigPage);
+  Lbl.Parent := ConfigPage.Surface;
+  Lbl.Caption := 'Token de Discord (OBLIGATORIO)';
+  Lbl.Font.Style := [fsBold];
+  Lbl.SetBounds(0, y, ConfigPage.SurfaceWidth, 18);
+
+  y := y + 20;
+  Lbl := TLabel.Create(ConfigPage);
+  Lbl.Parent := ConfigPage.Surface;
+  Lbl.Caption := 'Obtenelo en discord.com/developers/applications > Bot > Reset Token';
+  Lbl.Font.Color := $606060;
+  Lbl.SetBounds(0, y, ConfigPage.SurfaceWidth, 16);
+
+  y := y + 20;
+  DiscordTokenEdit := TNewEdit.Create(ConfigPage);
+  DiscordTokenEdit.Parent := ConfigPage.Surface;
+  DiscordTokenEdit.SetBounds(0, y, ConfigPage.SurfaceWidth - 10, 23);
+
+  y := y + 38;
+
+  // ---- Spotify ----
+  Lbl := TLabel.Create(ConfigPage);
+  Lbl.Parent := ConfigPage.Surface;
+  Lbl.Caption := 'Spotify (opcional - para reproducir links de Spotify)';
+  Lbl.Font.Style := [fsBold];
+  Lbl.SetBounds(0, y, ConfigPage.SurfaceWidth, 18);
+
+  y := y + 20;
+  Lbl := TLabel.Create(ConfigPage);
+  Lbl.Parent := ConfigPage.Surface;
+  Lbl.Caption := 'Obtenelos en developer.spotify.com/dashboard';
+  Lbl.Font.Color := $606060;
+  Lbl.SetBounds(0, y, ConfigPage.SurfaceWidth, 16);
+
+  y := y + 20;
+  Lbl := TLabel.Create(ConfigPage);
+  Lbl.Parent := ConfigPage.Surface;
+  Lbl.Caption := 'Client ID:';
+  Lbl.SetBounds(0, y, 70, 18);
+
+  SpotifyIdEdit := TNewEdit.Create(ConfigPage);
+  SpotifyIdEdit.Parent := ConfigPage.Surface;
+  SpotifyIdEdit.SetBounds(75, y - 2, 200, 23);
+
+  Lbl := TLabel.Create(ConfigPage);
+  Lbl.Parent := ConfigPage.Surface;
+  Lbl.Caption := 'Client Secret:';
+  Lbl.SetBounds(290, y, 80, 18);
+
+  SpotifySecretEdit := TNewEdit.Create(ConfigPage);
+  SpotifySecretEdit.Parent := ConfigPage.Surface;
+  SpotifySecretEdit.SetBounds(375, y - 2, 200, 23);
+
+  y := y + 38;
+
+  // ---- Genius ----
+  Lbl := TLabel.Create(ConfigPage);
+  Lbl.Parent := ConfigPage.Surface;
+  Lbl.Caption := 'Genius API Key (opcional - para mejor cobertura de letras)';
+  Lbl.Font.Style := [fsBold];
+  Lbl.SetBounds(0, y, ConfigPage.SurfaceWidth, 18);
+
+  y := y + 20;
+  Lbl := TLabel.Create(ConfigPage);
+  Lbl.Parent := ConfigPage.Surface;
+  Lbl.Caption := 'Obtenela en genius.com/api-clients';
+  Lbl.Font.Color := $606060;
+  Lbl.SetBounds(0, y, ConfigPage.SurfaceWidth, 16);
+
+  y := y + 20;
+  GeniusKeyEdit := TNewEdit.Create(ConfigPage);
+  GeniusKeyEdit.Parent := ConfigPage.Surface;
+  GeniusKeyEdit.SetBounds(0, y, 350, 23);
+
+  y := y + 40;
+
+  // ---- Nota ----
+  Lbl := TLabel.Create(ConfigPage);
+  Lbl.Parent := ConfigPage.Surface;
+  Lbl.Caption := 'Podés modificar estos valores después en el archivo .env de la carpeta de instalación.';
+  Lbl.Font.Color := $606060;
+  Lbl.SetBounds(0, y, ConfigPage.SurfaceWidth, 18);
+
+  // Pre-llenar con valores existentes si hay un .env previo
+  EnvFile := ExpandConstant('{app}\.env');
+  if FileExists(EnvFile) then
+  begin
+    DiscordTokenEdit.Text := ReadEnvValue(EnvFile, 'discord_token');
+    SpotifyIdEdit.Text := ReadEnvValue(EnvFile, 'SPOTIPY_CLIENT_ID');
+    SpotifySecretEdit.Text := ReadEnvValue(EnvFile, 'SPOTIPY_CLIENT_SECRET');
+    GeniusKeyEdit.Text := ReadEnvValue(EnvFile, 'GENIUS_API_KEY');
+  end;
+end;
+
+// ------------------------------------------------------------------
 //  Crear página personalizada de requisitos previos
 // ------------------------------------------------------------------
 
@@ -325,28 +475,65 @@ end;
 procedure InitializeWizard();
 begin
   CreatePrereqPage();
+  CreateConfigPage();
 end;
 
 procedure CurPageChanged(CurPageID: Integer);
 begin
   if CurPageID = PrereqPage.ID then
     UpdateStatus()
+  else if CurPageID = ConfigPage.ID then
+    // El token de Discord se valida en NextButtonClick
+    WizardForm.NextButton.Enabled := True
   else
     WizardForm.NextButton.Enabled := True;
 end;
 
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if CurPageID = ConfigPage.ID then
+  begin
+    if Trim(DiscordTokenEdit.Text) = '' then
+    begin
+      MsgBox('El Token de Discord es obligatorio para que el bot funcione.' + #13#10 +
+             'Por favor ingresá tu token antes de continuar.', mbError, MB_OK);
+      Result := False;
+    end;
+  end;
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
-  EnvFile, EnvExample: String;
+  EnvFile: String;
+  EnvContent: String;
   Code: Integer;
 begin
   if CurStep = ssPostInstall then
   begin
-    EnvFile    := ExpandConstant('{app}\.env');
-    EnvExample := ExpandConstant('{app}\.env.example');
+    EnvFile := ExpandConstant('{app}\.env');
 
-    if not FileExists(EnvFile) and FileExists(EnvExample) then
-      CopyFile(EnvExample, EnvFile, False);
+    // Generar contenido del .env con los valores ingresados
+    EnvContent :=
+      '# ============================================================================' + #13#10 +
+      '#                    THE REAL SEB - CONFIGURACION' + #13#10 +
+      '# ============================================================================' + #13#10 +
+      '# Generado automaticamente por el instalador' + #13#10 +
+      '# Podes editar este archivo manualmente si necesitas cambiar los valores' + #13#10 +
+      '# ============================================================================' + #13#10 +
+      #13#10 +
+      '# Discord Bot Token (OBLIGATORIO)' + #13#10 +
+      'discord_token=' + DiscordTokenEdit.Text + #13#10 +
+      #13#10 +
+      '# Spotify API (opcional)' + #13#10 +
+      'SPOTIPY_CLIENT_ID=' + SpotifyIdEdit.Text + #13#10 +
+      'SPOTIPY_CLIENT_SECRET=' + SpotifySecretEdit.Text + #13#10 +
+      #13#10 +
+      '# Genius API (opcional)' + #13#10 +
+      'GENIUS_API_KEY=' + GeniusKeyEdit.Text + #13#10;
+
+    // Guardar el archivo .env
+    SaveStringToFile(EnvFile, EnvContent, False);
 
     if WizardIsTaskSelected('startup') then
       Exec(ExpandConstant('{app}\Setup\Windows\add-to-startup.bat'), '',
