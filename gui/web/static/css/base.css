@@ -104,8 +104,9 @@ html, body {
 }
 
 .brand-icon {
-    font-size: 1.5rem;
-    line-height: 1;
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
 }
 
 .brand-name {
