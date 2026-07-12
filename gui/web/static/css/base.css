@@ -162,6 +162,11 @@ html, body {
     scroll-behavior: smooth;
 }
 
+/* Para vistas que manejan su propio layout (Home) */
+.scroll-viewport:has(.home-container) {
+    overflow-y: hidden;
+}
+
 /* Header con Glassmorphism */
 .glass-header {
     position: sticky;

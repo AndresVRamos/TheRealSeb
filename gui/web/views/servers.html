@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block title %}Servidores{% endblock %}
+{% block description %}Lista de servidores conectados{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/servers.css') }}">
+{% endblock %}
+
+{% block header %}
+<header class="glass-header">
+    <div class="header-main">
+        <h1>
+            <span class="page-icon">🖥️</span>
+            <span>Servidores</span>
+        </h1>
+        <div class="server-count" id="server-count">
+            <span class="count-value">--</span>
+            <span class="count-label">servidores</span>
+        </div>
+    </div>
+</header>
+{% endblock %}
+
+{% block content %}
+<div class="servers-container">
+    <!-- Grid de servidores -->
+    <div class="servers-grid" id="servers-grid">
+        <div class="loading-state">Cargando servidores...</div>
+    </div>
+</div>
+
+<!-- Modal para detalles del servidor -->
+<div id="server-detail-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content modal-lg">
+        <div class="modal-header">
+            <div class="server-modal-title">
+                <img id="modal-server-icon" class="server-icon-lg" src="" alt="">
+                <h3 id="modal-server-name">Servidor</h3>
+            </div>
+            <button class="modal-close" id="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <!-- Stats del servidor -->
+            <div class="server-stats-row" id="modal-stats">
+                <div class="server-stat">
+                    <span class="stat-value" id="modal-plays">--</span>
+                    <span class="stat-label">Reproducciones</span>
+                </div>
+                <div class="server-stat">
+                    <span class="stat-value" id="modal-users">--</span>
+                    <span class="stat-label">Usuarios</span>
+                </div>
+                <div class="server-stat">
+                    <span class="stat-value" id="modal-time">--</span>
+                    <span class="stat-label">Tiempo</span>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="detail-tabs">
+                <button class="tab-btn active" data-tab="songs">Top Canciones</button>
+                <button class="tab-btn" data-tab="artists">Top Artistas</button>
+                <button class="tab-btn" data-tab="users">Top Usuarios</button>
+            </div>
+
+            <!-- Tab content -->
+            <div class="tab-content active" id="tab-songs">
+                <table class="detail-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Cancion</th>
+                            <th>Artista</th>
+                            <th>Plays</th>
+                        </tr>
+                    </thead>
+                    <tbody id="songs-table-body"></tbody>
+                </table>
+                <div class="tab-loading">Cargando...</div>
+                <div class="tab-empty" style="display: none;">Sin datos</div>
+            </div>
+
+            <div class="tab-content" id="tab-artists">
+                <table class="detail-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Artista</th>
+                            <th>Plays</th>
+                        </tr>
+                    </thead>
+                    <tbody id="artists-table-body"></tbody>
+                </table>
+                <div class="tab-loading">Cargando...</div>
+                <div class="tab-empty" style="display: none;">Sin datos</div>
+            </div>
+
+            <div class="tab-content" id="tab-users">
+                <table class="detail-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Usuario</th>
+                            <th>Plays</th>
+                        </tr>
+                    </thead>
+                    <tbody id="users-table-body"></tbody>
+                </table>
+                <div class="tab-loading">Cargando...</div>
+                <div class="tab-empty" style="display: none;">Sin datos</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para perfil de usuario -->
+<div id="user-profile-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content modal-profile">
+        <div class="modal-header">
+            <h3 id="profile-modal-title">Perfil de Usuario</h3>
+            <button class="modal-close" id="profile-modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="profile-loading" class="modal-loading">Cargando...</div>
+            <div id="profile-content" style="display: none;">
+                <!-- Header del perfil -->
+                <div class="profile-header">
+                    <div class="profile-avatar" id="profile-avatar"></div>
+                    <div class="profile-info">
+                        <h2 id="profile-name"></h2>
+                        <div class="profile-meta">
+                            <span id="profile-member-since"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats grid -->
+                <div class="profile-stats-grid">
+                    <div class="profile-stat">
+                        <span class="stat-value" id="profile-plays">0</span>
+                        <span class="stat-label">Reproducciones</span>
+                    </div>
+                    <div class="profile-stat">
+                        <span class="stat-value" id="profile-time">0h</span>
+                        <span class="stat-label">Tiempo escuchando</span>
+                    </div>
+                    <div class="profile-stat">
+                        <span class="stat-value" id="profile-tracks">0</span>
+                        <span class="stat-label">Canciones unicas</span>
+                    </div>
+                    <div class="profile-stat">
+                        <span class="stat-value" id="profile-artists">0</span>
+                        <span class="stat-label">Artistas</span>
+                    </div>
+                </div>
+
+                <!-- Favoritos -->
+                <div class="profile-favorites">
+                    <div class="favorite-item">
+                        <span class="favorite-label">Hora favorita:</span>
+                        <span class="favorite-value" id="profile-fav-hour">--</span>
+                    </div>
+                    <div class="favorite-item">
+                        <span class="favorite-label">Dia favorito:</span>
+                        <span class="favorite-value" id="profile-fav-day">--</span>
+                    </div>
+                </div>
+
+                <!-- Tops lado a lado -->
+                <div class="profile-tops">
+                    <div class="top-section">
+                        <h4>Top Canciones</h4>
+                        <ol class="top-list" id="profile-top-songs"></ol>
+                    </div>
+                    <div class="top-section">
+                        <h4>Top Artistas</h4>
+                        <ol class="top-list" id="profile-top-artists"></ol>
+                    </div>
+                </div>
+
+                <!-- Mini grafico de actividad -->
+                <div class="profile-activity">
+                    <h4>Actividad reciente (7 dias)</h4>
+                    <div class="activity-chart">
+                        <canvas id="profile-activity-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='js/profile-modal.js') }}"></script>
+<script src="{{ url_for('static', filename='js/servers.js') }}"></script>
+{% endblock %}

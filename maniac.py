@@ -16,11 +16,12 @@ from core.updater import check_for_updates
 
 # Importar dashboard web (con manejo de errores si no está disponible)
 try:
-    from gui.web.dashboard import app as dashboard_app, ensure_log_file
+    from gui.web.dashboard import app as dashboard_app, ensure_log_file, set_bot_instance
     DASHBOARD_AVAILABLE = True
 except ImportError as e:
     logging.warning(f"Dashboard web no disponible: {e}")
     DASHBOARD_AVAILABLE = False
+    set_bot_instance = None
 
 
 # Configurar logging
@@ -39,8 +40,8 @@ root_logger.addHandler(file_handler)
 root_logger.setLevel(logging.DEBUG)
 
 # Silenciar logs de Flask/Werkzeug para que no contaminen los logs del bot
-# logging.getLogger('werkzeug').setLevel(logging.ERROR)
-# logging.getLogger('flask').setLevel(logging.ERROR)
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
+logging.getLogger('flask').setLevel(logging.ERROR)
 
 # Variable global para la ventana de logs
 log_window = LogWindow()
@@ -65,6 +66,9 @@ async def run_bot():
     @bot.event
     async def on_ready():
         logging.info(f'{bot.user} is now jamming')
+        # Pasar instancia del bot al dashboard
+        if DASHBOARD_AVAILABLE and set_bot_instance:
+            set_bot_instance(bot)
         asyncio.create_task(check_for_updates(log_window.notify_update))
         # Sincronizar slash commands
         try:
