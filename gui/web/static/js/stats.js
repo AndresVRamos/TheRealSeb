@@ -568,11 +568,31 @@ async function loadHeatmap() {
             return;
         }
 
+        const hoursContainer = document.getElementById('heatmap-hours');
         const grid = document.getElementById('heatmap-grid');
-        if (!grid) return;
+        if (!grid || !hoursContainer) return;
 
-        // Limpiar grid existente
+        // Limpiar contenedores
+        hoursContainer.innerHTML = '';
         grid.innerHTML = '';
+
+        // Generar fila de labels de hora (alineados con las celdas)
+        const hoursSpacer = document.createElement('div');
+        hoursSpacer.className = 'heatmap-hours-spacer';
+        hoursContainer.appendChild(hoursSpacer);
+
+        const hoursCells = document.createElement('div');
+        hoursCells.className = 'heatmap-hours-cells';
+        for (let hour = 0; hour < 24; hour++) {
+            const hourLabel = document.createElement('div');
+            hourLabel.className = 'hour-label';
+            // Mostrar label cada 3 horas
+            if (hour % 3 === 0) {
+                hourLabel.textContent = hour.toString().padStart(2, '0');
+            }
+            hoursCells.appendChild(hourLabel);
+        }
+        hoursContainer.appendChild(hoursCells);
 
         // Calcular niveles (0-4) basados en max_value
         const maxValue = data.max_value || 1;
