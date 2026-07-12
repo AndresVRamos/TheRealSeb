@@ -1,4 +1,16 @@
 @echo off
+set "STARTUP_FOLDER=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
+set "SHORTCUT_NAME=The Real Seb.lnk"
+
+REM Modo silencioso (para desinstalador)
+if "%1"=="/silent" (
+    if exist "%STARTUP_FOLDER%\%SHORTCUT_NAME%" (
+        del "%STARTUP_FOLDER%\%SHORTCUT_NAME%" >nul 2>&1
+    )
+    exit /b 0
+)
+
+REM Modo interactivo (ejecutado manualmente)
 title The Real Seb - Remover del Inicio
 
 echo.
@@ -6,9 +18,6 @@ echo ============================================================
 echo          THE REAL SEB - REMOVER DEL INICIO
 echo ============================================================
 echo.
-
-set "STARTUP_FOLDER=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
-set "SHORTCUT_NAME=The Real Seb.lnk"
 
 if not exist "%STARTUP_FOLDER%\%SHORTCUT_NAME%" (
     echo [INFO] No hay acceso directo de The Real Seb en el inicio.
