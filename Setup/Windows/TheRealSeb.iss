@@ -92,6 +92,7 @@ var
   SpotifyIdEdit:       TNewEdit;
   SpotifySecretEdit:   TNewEdit;
   GeniusKeyEdit:       TNewEdit;
+  ConfigPageInitialized: Boolean;
 
 // ------------------------------------------------------------------
 //  Detección de dependencias
@@ -265,7 +266,6 @@ procedure CreateConfigPage();
 var
   Lbl: TLabel;
   y: Integer;
-  EnvFile: String;
 begin
   ConfigPage := CreateCustomPage(
     PrereqPage.ID,
@@ -358,16 +358,6 @@ begin
   Lbl.Caption := 'Podés modificar estos valores después en el archivo .env de la carpeta de instalación.';
   Lbl.Font.Color := $606060;
   Lbl.SetBounds(0, y, ConfigPage.SurfaceWidth, 18);
-
-  // Pre-llenar con valores existentes si hay un .env previo
-  EnvFile := ExpandConstant('{app}\.env');
-  if FileExists(EnvFile) then
-  begin
-    DiscordTokenEdit.Text := ReadEnvValue(EnvFile, 'discord_token');
-    SpotifyIdEdit.Text := ReadEnvValue(EnvFile, 'SPOTIPY_CLIENT_ID');
-    SpotifySecretEdit.Text := ReadEnvValue(EnvFile, 'SPOTIPY_CLIENT_SECRET');
-    GeniusKeyEdit.Text := ReadEnvValue(EnvFile, 'GENIUS_API_KEY');
-  end;
 end;
 
 // ------------------------------------------------------------------
@@ -474,17 +464,34 @@ end;
 
 procedure InitializeWizard();
 begin
+  ConfigPageInitialized := False;
   CreatePrereqPage();
   CreateConfigPage();
 end;
 
 procedure CurPageChanged(CurPageID: Integer);
+var
+  EnvFile: String;
 begin
   if CurPageID = PrereqPage.ID then
     UpdateStatus()
   else if CurPageID = ConfigPage.ID then
-    // El token de Discord se valida en NextButtonClick
-    WizardForm.NextButton.Enabled := True
+  begin
+    // Pre-llenar con valores existentes si hay un .env previo (solo la primera vez)
+    if not ConfigPageInitialized then
+    begin
+      ConfigPageInitialized := True;
+      EnvFile := ExpandConstant('{app}\.env');
+      if FileExists(EnvFile) then
+      begin
+        DiscordTokenEdit.Text := ReadEnvValue(EnvFile, 'discord_token');
+        SpotifyIdEdit.Text := ReadEnvValue(EnvFile, 'SPOTIPY_CLIENT_ID');
+        SpotifySecretEdit.Text := ReadEnvValue(EnvFile, 'SPOTIPY_CLIENT_SECRET');
+        GeniusKeyEdit.Text := ReadEnvValue(EnvFile, 'GENIUS_API_KEY');
+      end;
+    end;
+    WizardForm.NextButton.Enabled := True;
+  end
   else
     WizardForm.NextButton.Enabled := True;
 end;
