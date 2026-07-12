@@ -520,13 +520,13 @@ begin
       '# ============================================================================' + #13#10 +
       '# Generado automaticamente por el instalador' + #13#10 +
       '# Podes editar este archivo manualmente si necesitas cambiar los valores' + #13#10 +
-      '# ============================================================================' + #13#10 +
-      #13#10 + '# Discord Bot Token (OBLIGATORIO)' + #13#10 +
-      'discord_token=' + DiscordTokenEdit.Text + #13#10 +
-      #13#10 + '# Spotify API (opcional)' + #13#10 +
+      '# ============================================================================' + #13#10 + #13#10 +
+      '# Discord Bot Token (OBLIGATORIO)' + #13#10 +
+      'discord_token=' + DiscordTokenEdit.Text + #13#10 + #13#10 +
+      '# Spotify API (opcional)' + #13#10 +
       'SPOTIPY_CLIENT_ID=' + SpotifyIdEdit.Text + #13#10 +
-      'SPOTIPY_CLIENT_SECRET=' + SpotifySecretEdit.Text + #13#10 +
-      #13#10 + '# Genius API (opcional)' + #13#10 +
+      'SPOTIPY_CLIENT_SECRET=' + SpotifySecretEdit.Text + #13#10 + #13#10 +
+      '# Genius API (opcional)' + #13#10 +
       'GENIUS_API_KEY=' + GeniusKeyEdit.Text + #13#10;
 
     // Guardar el archivo .env
