@@ -39,9 +39,9 @@ def init_database():
 
 def record_play(guild_id: int, requester_id: int, requester_name: str,
                 song_title: str, artist: Optional[str], url: Optional[str],
-                duration: Optional[int], listeners: List[Tuple[int, str]],
+                duration: Optional[int], listeners: List[Tuple[int, str, str]],
                 guild_name: str = None, thumbnail_url: str = None,
-                guild_icon_url: str = None):
+                guild_icon_url: str = None, requester_avatar_url: str = None):
     """
     Registra una reproduccion completa.
 
@@ -53,10 +53,11 @@ def record_play(guild_id: int, requester_id: int, requester_name: str,
         artist: Artista (opcional)
         url: URL de la cancion (opcional)
         duration: Duracion en segundos (opcional)
-        listeners: Lista de tuplas (user_id, user_name) de los oyentes
+        listeners: Lista de tuplas (user_id, user_name, avatar_url) de los oyentes
         guild_name: Nombre del servidor (opcional)
         thumbnail_url: URL del thumbnail (opcional)
         guild_icon_url: URL del icono del servidor (opcional)
+        requester_avatar_url: URL del avatar del requester (opcional)
     """
     try:
         if guild_name is None:
@@ -73,7 +74,8 @@ def record_play(guild_id: int, requester_id: int, requester_name: str,
             duration=duration,
             listeners=listeners,
             thumbnail_url=thumbnail_url,
-            guild_icon_url=guild_icon_url
+            guild_icon_url=guild_icon_url,
+            requester_avatar_url=requester_avatar_url
         )
     except Exception as e:
         logging.error(f"Error recording play: {e}")

@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Home{% endblock %}
+{% block description %}Panel principal de The Real Seb{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
+{% endblock %}
+
+{% block header %}
+<header class="glass-header">
+    <div class="header-main">
+        <h1>
+            <span class="page-icon">🏠</span>
+            <span>Dashboard</span>
+        </h1>
+        <div class="bot-status" id="bot-status">
+            <span class="status-dot"></span>
+            <span class="status-text">Conectando...</span>
+        </div>
+    </div>
+</header>
+{% endblock %}
+
+{% block content %}
+<div class="home-container">
+    <!-- Stats Cards -->
+    <section class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">🎵</div>
+            <div class="stat-info">
+                <span class="stat-value" id="total-plays">--</span>
+                <span class="stat-label">Total Plays</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">🎸</div>
+            <div class="stat-info">
+                <span class="stat-value" id="unique-tracks">--</span>
+                <span class="stat-label">Canciones</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">🎤</div>
+            <div class="stat-info">
+                <span class="stat-value" id="unique-artists">--</span>
+                <span class="stat-label">Artistas</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">⏱️</div>
+            <div class="stat-info">
+                <span class="stat-value" id="total-time">--</span>
+                <span class="stat-label">Tiempo Total</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Content Grid -->
+    <div class="content-grid">
+        <!-- Bot Info Card -->
+        <section class="card bot-info-card">
+            <h2>Estado del Bot</h2>
+            <div class="bot-details">
+                <div class="detail-row">
+                    <span class="detail-label">Servidores</span>
+                    <span class="detail-value" id="guild-count">--</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Primer Play</span>
+                    <span class="detail-value" id="first-play">--</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Ultimo Play</span>
+                    <span class="detail-value" id="last-play">--</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Uptime</span>
+                    <span class="detail-value" id="uptime">--</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Recent Activity -->
+        <section class="card recent-activity-card">
+            <h2>Actividad Reciente</h2>
+            <div class="activity-list" id="recent-plays">
+                <div class="loading">Cargando...</div>
+            </div>
+        </section>
+
+        <!-- Top Songs -->
+        <section class="card top-songs-card">
+            <h2>Top Canciones</h2>
+            <div class="top-list" id="top-songs">
+                <div class="loading">Cargando...</div>
+            </div>
+        </section>
+
+        <!-- Top Artists -->
+        <section class="card top-artists-card">
+            <h2>Top Artistas</h2>
+            <div class="top-list" id="top-artists">
+                <div class="loading">Cargando...</div>
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/home.js') }}"></script>
+{% endblock %}

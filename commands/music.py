@@ -317,8 +317,10 @@ class MusicCommands(commands.Cog):
                         guild = self.bot.get_guild(guild_id)
                         logging.info(f"[PLAYBACK] Terminó: '{song_data['title']}' en {guild.name if guild else guild_id}")
                         voice_channel = self.voice_clients[guild_id].channel
-                        listeners = [(m.id, m.display_name) for m in voice_channel.members if not m.bot]
+                        listeners = [(m.id, m.display_name, str(m.display_avatar.url) if m.display_avatar else None)
+                                     for m in voice_channel.members if not m.bot]
                         requester = song_data.get('requester')
+                        requester_avatar = str(requester.display_avatar.url) if requester and requester.display_avatar else None
 
                         record_play(
                             guild_id=guild_id,
@@ -331,7 +333,8 @@ class MusicCommands(commands.Cog):
                             listeners=listeners,
                             guild_name=guild.name if guild else None,
                             thumbnail_url=song_data.get('thumbnail'),
-                            guild_icon_url=str(guild.icon.url) if guild and guild.icon else None
+                            guild_icon_url=str(guild.icon.url) if guild and guild.icon else None,
+                            requester_avatar_url=requester_avatar
                         )
                         logging.info(f"Recorded play for {len(listeners)} listeners in guild {guild_id}")
                 except Exception as e:

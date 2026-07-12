@@ -239,8 +239,9 @@ def _add_track_url(track_id: int, url: str, source: str, conn: sqlite3.Connectio
 def record_play(guild_discord_id: int, guild_name: str,
                    requester_discord_id: int, requester_name: str,
                    song_title: str, artist: Optional[str], url: Optional[str],
-                   duration: Optional[int], listeners: List[Tuple[int, str]],
-                   thumbnail_url: str = None, guild_icon_url: str = None):
+                   duration: Optional[int], listeners: List[Tuple[int, str, str]],
+                   thumbnail_url: str = None, guild_icon_url: str = None,
+                   requester_avatar_url: str = None):
     """
     Registra un evento de reproducción con todos los datos relacionados.
     Este es el punto de entrada principal para registrar reproducciones en el esquema v2.
@@ -250,7 +251,8 @@ def record_play(guild_discord_id: int, guild_name: str,
     try:
         # Obtener o crear todas las entidades
         guild_id = get_or_create_guild(guild_discord_id, guild_name, guild_icon_url, conn)
-        requester_id = get_or_create_user(requester_discord_id, requester_name, conn=conn)
+        requester_id = get_or_create_user(requester_discord_id, requester_name,
+                                          avatar_url=requester_avatar_url, conn=conn)
 
         artist_id = None
         if artist:
@@ -275,8 +277,11 @@ def record_play(guild_discord_id: int, guild_name: str,
         play_id = cursor.lastrowid
 
         # Insertar oyentes
-        for listener_discord_id, listener_name in listeners:
-            listener_id = get_or_create_user(listener_discord_id, listener_name, conn=conn)
+        for listener_data in listeners:
+            listener_discord_id, listener_name = listener_data[0], listener_data[1]
+            listener_avatar_url = listener_data[2] if len(listener_data) > 2 else None
+            listener_id = get_or_create_user(listener_discord_id, listener_name,
+                                             avatar_url=listener_avatar_url, conn=conn)
             try:
                 cursor.execute('''
                     INSERT INTO listens (play_id, user_id)
