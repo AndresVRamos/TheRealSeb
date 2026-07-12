@@ -513,31 +513,43 @@ begin
   begin
     EnvFile := ExpandConstant('{app}\.env');
 
-    // Generar contenido del .env con los valores ingresados
-    EnvContent :=
-      '# ============================================================================' + #13#10 +
-      '#                    THE REAL SEB - CONFIGURACION' + #13#10 +
-      '# ============================================================================' + #13#10 +
-      '# Generado automaticamente por el instalador' + #13#10 +
-      '# Podes editar este archivo manualmente si necesitas cambiar los valores' + #13#10 +
-      '# ============================================================================' + #13#10 + #13#10 +
-      '# Discord Bot Token (OBLIGATORIO)' + #13#10 +
-      'discord_token=' + DiscordTokenEdit.Text + #13#10 + #13#10 +
-      '# Spotify API (opcional)' + #13#10 +
-      'SPOTIPY_CLIENT_ID=' + SpotifyIdEdit.Text + #13#10 +
-      'SPOTIPY_CLIENT_SECRET=' + SpotifySecretEdit.Text + #13#10 + #13#10 +
-      '# Genius API (opcional)' + #13#10 +
-      'GENIUS_API_KEY=' + GeniusKeyEdit.Text + #13#10;
+    // En modo silencioso (actualizacion), preservar el .env existente
+    // Solo generar nuevo .env si no existe o si es instalacion interactiva
+    if not WizardSilent then
+    begin
+      // Generar contenido del .env con los valores ingresados
+      EnvContent :=
+        '# ============================================================================' + #13#10 +
+        '#                    THE REAL SEB - CONFIGURACION' + #13#10 +
+        '# ============================================================================' + #13#10 +
+        '# Generado automaticamente por el instalador' + #13#10 +
+        '# Podes editar este archivo manualmente si necesitas cambiar los valores' + #13#10 +
+        '# ============================================================================' + #13#10 + #13#10 +
+        '# Discord Bot Token (OBLIGATORIO)' + #13#10 +
+        'discord_token=' + DiscordTokenEdit.Text + #13#10 + #13#10 +
+        '# Spotify API (opcional)' + #13#10 +
+        'SPOTIPY_CLIENT_ID=' + SpotifyIdEdit.Text + #13#10 +
+        'SPOTIPY_CLIENT_SECRET=' + SpotifySecretEdit.Text + #13#10 + #13#10 +
+        '# Genius API (opcional)' + #13#10 +
+        'GENIUS_API_KEY=' + GeniusKeyEdit.Text + #13#10;
 
-    // Guardar el archivo .env
-    SaveStringToFile(EnvFile, EnvContent, False);
+      // Guardar el archivo .env
+      SaveStringToFile(EnvFile, EnvContent, False);
+    end;
 
     if WizardIsTaskSelected('startup') then
       Exec(ExpandConstant('{app}\Setup\Windows\add-to-startup.bat'), '',
            ExpandConstant('{app}'), SW_HIDE, ewWaitUntilTerminated, Code);
 
     if WizardIsTaskSelected('launchbot') then
-      Exec(ExpandConstant('{app}\Setup\Windows\start.bat'), '',
-           ExpandConstant('{app}'), SW_SHOW, ewNoWait, Code);
+    begin
+      // En modo silencioso usar SW_HIDE, en interactivo SW_SHOW
+      if WizardSilent then
+        Exec(ExpandConstant('{app}\Setup\Windows\start.bat'), '',
+             ExpandConstant('{app}'), SW_HIDE, ewNoWait, Code)
+      else
+        Exec(ExpandConstant('{app}\Setup\Windows\start.bat'), '',
+             ExpandConstant('{app}'), SW_SHOW, ewNoWait, Code);
+    end;
   end;
 end;

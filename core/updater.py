@@ -57,16 +57,19 @@ def _do_install(download_url: str, filename: str):
     # /VERYSILENT   → sin UI
     # /SUPPRESSMSGBOXES → sin popups de error
     # /NORESTART    → no reiniciar Windows
+    # /FORCECLOSEAPPLICATIONS → cerrar apps que bloqueen archivos
     # /TASKS=launchbot → lanzar el bot al terminar
     subprocess.Popen([
         str(dest),
         '/VERYSILENT',
         '/SUPPRESSMSGBOXES',
         '/NORESTART',
+        '/FORCECLOSEAPPLICATIONS',
         '/TASKS=launchbot'
     ])
 
-    time.sleep(2)
+    # Dar tiempo al instalador para iniciar antes de cerrar
+    time.sleep(5)
     os._exit(0)
 
 
