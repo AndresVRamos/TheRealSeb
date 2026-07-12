@@ -267,8 +267,9 @@ var
   Lbl: TLabel;
   y: Integer;
 begin
+  // Crear despues de wpSelectDir para que {app} este disponible
   ConfigPage := CreateCustomPage(
-    PrereqPage.ID,
+    wpSelectDir,
     'Configuración de credenciales',
     'Ingresá tus tokens y claves de API. Solo el Token de Discord es obligatorio.'
   );
@@ -280,84 +281,85 @@ begin
   Lbl.Parent := ConfigPage.Surface;
   Lbl.Caption := 'Token de Discord (OBLIGATORIO)';
   Lbl.Font.Style := [fsBold];
-  Lbl.SetBounds(0, y, ConfigPage.SurfaceWidth, 18);
+  Lbl.SetBounds(0, y, 417, 18);
 
-  y := y + 20;
+  y := y + 18;
   Lbl := TLabel.Create(ConfigPage);
   Lbl.Parent := ConfigPage.Surface;
-  Lbl.Caption := 'Obtenelo en discord.com/developers/applications > Bot > Reset Token';
+  Lbl.Caption := 'discord.com/developers/applications > Bot > Reset Token';
   Lbl.Font.Color := $606060;
-  Lbl.SetBounds(0, y, ConfigPage.SurfaceWidth, 16);
+  Lbl.SetBounds(0, y, 417, 16);
 
   y := y + 20;
   DiscordTokenEdit := TNewEdit.Create(ConfigPage);
   DiscordTokenEdit.Parent := ConfigPage.Surface;
-  DiscordTokenEdit.SetBounds(0, y, ConfigPage.SurfaceWidth - 10, 23);
+  DiscordTokenEdit.SetBounds(0, y, 417, 23);
 
-  y := y + 38;
+  y := y + 32;
 
   // ---- Spotify ----
   Lbl := TLabel.Create(ConfigPage);
   Lbl.Parent := ConfigPage.Surface;
-  Lbl.Caption := 'Spotify (opcional - para reproducir links de Spotify)';
+  Lbl.Caption := 'Spotify (opcional - para links de Spotify)';
   Lbl.Font.Style := [fsBold];
-  Lbl.SetBounds(0, y, ConfigPage.SurfaceWidth, 18);
+  Lbl.SetBounds(0, y, 417, 18);
 
-  y := y + 20;
+  y := y + 18;
   Lbl := TLabel.Create(ConfigPage);
   Lbl.Parent := ConfigPage.Surface;
-  Lbl.Caption := 'Obtenelos en developer.spotify.com/dashboard';
+  Lbl.Caption := 'developer.spotify.com/dashboard';
   Lbl.Font.Color := $606060;
-  Lbl.SetBounds(0, y, ConfigPage.SurfaceWidth, 16);
+  Lbl.SetBounds(0, y, 417, 16);
 
   y := y + 20;
   Lbl := TLabel.Create(ConfigPage);
   Lbl.Parent := ConfigPage.Surface;
   Lbl.Caption := 'Client ID:';
-  Lbl.SetBounds(0, y, 70, 18);
+  Lbl.SetBounds(0, y + 3, 60, 18);
 
   SpotifyIdEdit := TNewEdit.Create(ConfigPage);
   SpotifyIdEdit.Parent := ConfigPage.Surface;
-  SpotifyIdEdit.SetBounds(75, y - 2, 200, 23);
+  SpotifyIdEdit.SetBounds(65, y, 352, 23);
 
+  y := y + 28;
   Lbl := TLabel.Create(ConfigPage);
   Lbl.Parent := ConfigPage.Surface;
-  Lbl.Caption := 'Client Secret:';
-  Lbl.SetBounds(290, y, 80, 18);
+  Lbl.Caption := 'Secret:';
+  Lbl.SetBounds(0, y + 3, 60, 18);
 
   SpotifySecretEdit := TNewEdit.Create(ConfigPage);
   SpotifySecretEdit.Parent := ConfigPage.Surface;
-  SpotifySecretEdit.SetBounds(375, y - 2, 200, 23);
+  SpotifySecretEdit.SetBounds(65, y, 352, 23);
 
-  y := y + 38;
+  y := y + 32;
 
   // ---- Genius ----
   Lbl := TLabel.Create(ConfigPage);
   Lbl.Parent := ConfigPage.Surface;
-  Lbl.Caption := 'Genius API Key (opcional - para mejor cobertura de letras)';
+  Lbl.Caption := 'Genius API Key (opcional - para letras)';
   Lbl.Font.Style := [fsBold];
-  Lbl.SetBounds(0, y, ConfigPage.SurfaceWidth, 18);
+  Lbl.SetBounds(0, y, 417, 18);
 
-  y := y + 20;
+  y := y + 18;
   Lbl := TLabel.Create(ConfigPage);
   Lbl.Parent := ConfigPage.Surface;
-  Lbl.Caption := 'Obtenela en genius.com/api-clients';
+  Lbl.Caption := 'genius.com/api-clients';
   Lbl.Font.Color := $606060;
-  Lbl.SetBounds(0, y, ConfigPage.SurfaceWidth, 16);
+  Lbl.SetBounds(0, y, 417, 16);
 
   y := y + 20;
   GeniusKeyEdit := TNewEdit.Create(ConfigPage);
   GeniusKeyEdit.Parent := ConfigPage.Surface;
-  GeniusKeyEdit.SetBounds(0, y, 350, 23);
+  GeniusKeyEdit.SetBounds(0, y, 417, 23);
 
-  y := y + 40;
+  y := y + 32;
 
   // ---- Nota ----
   Lbl := TLabel.Create(ConfigPage);
   Lbl.Parent := ConfigPage.Surface;
-  Lbl.Caption := 'Podés modificar estos valores después en el archivo .env de la carpeta de instalación.';
+  Lbl.Caption := 'Podes modificar estos valores en el archivo .env';
   Lbl.Font.Color := $606060;
-  Lbl.SetBounds(0, y, ConfigPage.SurfaceWidth, 18);
+  Lbl.SetBounds(0, y, 417, 18);
 end;
 
 // ------------------------------------------------------------------
