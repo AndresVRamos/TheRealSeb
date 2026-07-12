@@ -707,16 +707,34 @@
 }
 
 .heatmap-hours {
-    display: grid;
-    grid-template-columns: 40px repeat(8, 1fr);
+    display: flex;
+    align-items: center;
     gap: 2px;
-    margin-bottom: 2px;
+    margin-bottom: 4px;
     font-size: 0.625rem;
     color: var(--text-tertiary);
 }
 
+.heatmap-hours-spacer {
+    width: 40px;
+    flex-shrink: 0;
+}
+
+.heatmap-hours-cells {
+    display: flex;
+    gap: 2px;
+    flex: 1;
+}
+
 .hour-label {
+    width: 100%;
+    min-width: 12px;
+    max-width: 24px;
     text-align: center;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
 }
 
 .heatmap-grid {
