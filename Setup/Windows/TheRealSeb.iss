@@ -191,8 +191,8 @@ var
 begin
   MsgBox(
     'Se abrirá una ventana de terminal para instalar Python.' + #13#10 +
-    'Esperá a que termine y cerrá la ventana.' + #13#10 +
-    'Después hacé click en "Verificar de nuevo".',
+    'Espera a que termine y cierra la ventana.' + #13#10 +
+    'Después haz clic en "Verificar de nuevo".',
     mbInformation, MB_OK
   );
   Exec('cmd.exe',
@@ -207,8 +207,8 @@ var
 begin
   MsgBox(
     'Se abrirá una ventana de terminal para instalar FFmpeg.' + #13#10 +
-    'Esperá a que termine y cerrá la ventana.' + #13#10 +
-    'Después hacé click en "Verificar de nuevo".' + #13#10 + #13#10 +
+    'Espera a que termine y cierra la ventana.' + #13#10 +
+    'Después haz clic en "Verificar de nuevo".' + #13#10 + #13#10 +
     'Nota: puede ser necesario reiniciar Windows para que FFmpeg quede en el PATH.',
     mbInformation, MB_OK
   );
@@ -271,7 +271,7 @@ begin
   ConfigPage := CreateCustomPage(
     wpSelectDir,
     'Configuración de credenciales',
-    'Ingresá tus tokens y claves de API. Solo el Token de Discord es obligatorio.'
+    'Ingresa tus tokens y claves de API. Solo el Token de Discord es obligatorio.'
   );
 
   y := 8;
@@ -281,16 +281,16 @@ begin
   Lbl.Parent := ConfigPage.Surface;
   Lbl.Caption := 'Token de Discord (OBLIGATORIO)';
   Lbl.Font.Style := [fsBold];
-  Lbl.SetBounds(0, y, 417, 18);
-
-  y := y + 18;
-  Lbl := TLabel.Create(ConfigPage);
-  Lbl.Parent := ConfigPage.Surface;
-  Lbl.Caption := 'discord.com/developers/applications > Bot > Reset Token';
-  Lbl.Font.Color := $606060;
-  Lbl.SetBounds(0, y, 417, 16);
+  Lbl.SetBounds(0, y, 417, 20);
 
   y := y + 20;
+  Lbl := TLabel.Create(ConfigPage);
+  Lbl.Parent := ConfigPage.Surface;
+  Lbl.Caption := 'discord.com/developers > Bot > Reset Token';
+  Lbl.Font.Color := $606060;
+  Lbl.SetBounds(0, y, 417, 20);
+
+  y := y + 22;
   DiscordTokenEdit := TNewEdit.Create(ConfigPage);
   DiscordTokenEdit.Parent := ConfigPage.Surface;
   DiscordTokenEdit.SetBounds(0, y, 417, 23);
@@ -300,22 +300,22 @@ begin
   // ---- Spotify ----
   Lbl := TLabel.Create(ConfigPage);
   Lbl.Parent := ConfigPage.Surface;
-  Lbl.Caption := 'Spotify (opcional - para links de Spotify)';
+  Lbl.Caption := 'Spotify (opcional)';
   Lbl.Font.Style := [fsBold];
-  Lbl.SetBounds(0, y, 417, 18);
-
-  y := y + 18;
-  Lbl := TLabel.Create(ConfigPage);
-  Lbl.Parent := ConfigPage.Surface;
-  Lbl.Caption := 'developer.spotify.com/dashboard';
-  Lbl.Font.Color := $606060;
-  Lbl.SetBounds(0, y, 417, 16);
+  Lbl.SetBounds(0, y, 417, 20);
 
   y := y + 20;
   Lbl := TLabel.Create(ConfigPage);
   Lbl.Parent := ConfigPage.Surface;
+  Lbl.Caption := 'developer.spotify.com/dashboard';
+  Lbl.Font.Color := $606060;
+  Lbl.SetBounds(0, y, 417, 20);
+
+  y := y + 22;
+  Lbl := TLabel.Create(ConfigPage);
+  Lbl.Parent := ConfigPage.Surface;
   Lbl.Caption := 'Client ID:';
-  Lbl.SetBounds(0, y + 3, 60, 18);
+  Lbl.SetBounds(0, y + 2, 60, 20);
 
   SpotifyIdEdit := TNewEdit.Create(ConfigPage);
   SpotifyIdEdit.Parent := ConfigPage.Surface;
@@ -325,7 +325,7 @@ begin
   Lbl := TLabel.Create(ConfigPage);
   Lbl.Parent := ConfigPage.Surface;
   Lbl.Caption := 'Secret:';
-  Lbl.SetBounds(0, y + 3, 60, 18);
+  Lbl.SetBounds(0, y + 2, 60, 20);
 
   SpotifySecretEdit := TNewEdit.Create(ConfigPage);
   SpotifySecretEdit.Parent := ConfigPage.Surface;
@@ -336,18 +336,18 @@ begin
   // ---- Genius ----
   Lbl := TLabel.Create(ConfigPage);
   Lbl.Parent := ConfigPage.Surface;
-  Lbl.Caption := 'Genius API Key (opcional - para letras)';
+  Lbl.Caption := 'Genius API Key (opcional)';
   Lbl.Font.Style := [fsBold];
-  Lbl.SetBounds(0, y, 417, 18);
+  Lbl.SetBounds(0, y, 417, 20);
 
-  y := y + 18;
+  y := y + 20;
   Lbl := TLabel.Create(ConfigPage);
   Lbl.Parent := ConfigPage.Surface;
   Lbl.Caption := 'genius.com/api-clients';
   Lbl.Font.Color := $606060;
-  Lbl.SetBounds(0, y, 417, 16);
+  Lbl.SetBounds(0, y, 417, 20);
 
-  y := y + 20;
+  y := y + 22;
   GeniusKeyEdit := TNewEdit.Create(ConfigPage);
   GeniusKeyEdit.Parent := ConfigPage.Surface;
   GeniusKeyEdit.SetBounds(0, y, 417, 23);
@@ -357,9 +357,9 @@ begin
   // ---- Nota ----
   Lbl := TLabel.Create(ConfigPage);
   Lbl.Parent := ConfigPage.Surface;
-  Lbl.Caption := 'Podes modificar estos valores en el archivo .env';
+  Lbl.Caption := 'Puedes modificar estos valores en el archivo .env';
   Lbl.Font.Color := $606060;
-  Lbl.SetBounds(0, y, 417, 18);
+  Lbl.SetBounds(0, y, 417, 20);
 end;
 
 // ------------------------------------------------------------------
@@ -375,7 +375,7 @@ begin
   PrereqPage := CreateCustomPage(
     wpWelcome,
     'Requisitos previos',
-    'Verificá que los componentes necesarios estén instalados antes de continuar.'
+    'Verifica que los componentes necesarios esten instalados antes de continuar.'
   );
 
   y := 8;
@@ -396,7 +396,7 @@ begin
   y := y + 22;
   Lbl := TLabel.Create(PrereqPage);
   Lbl.Parent := PrereqPage.Surface;
-  Lbl.Caption := 'Necesario para ejecutar el bot. Instalalo con "Add Python to PATH" activado.';
+  Lbl.Caption := 'Necesario para ejecutar el bot. Instala con "Add Python to PATH" activado.';
   Lbl.SetBounds(0, y, PrereqPage.SurfaceWidth, 18);
 
   y := y + 26;
@@ -432,7 +432,7 @@ begin
   y := y + 22;
   Lbl := TLabel.Create(PrereqPage);
   Lbl.Parent := PrereqPage.Surface;
-  Lbl.Caption := 'Sin FFmpeg el bot no reproducirá audio. Reiniciá Windows después de instalarlo.';
+  Lbl.Caption := 'Sin FFmpeg el bot no reproduce audio. Reinicia Windows despues de instalarlo.';
   Lbl.SetBounds(0, y, PrereqPage.SurfaceWidth, 18);
 
   y := y + 26;
@@ -455,7 +455,7 @@ begin
 
   Lbl := TLabel.Create(PrereqPage);
   Lbl.Parent := PrereqPage.Surface;
-  Lbl.Caption := 'Después de instalar algo, hacé click en "Verificar de nuevo" para actualizar el estado.';
+  Lbl.Caption := 'Después de instalar algo, haz clic en "Verificar de nuevo" para actualizar el estado.';
   Lbl.Font.Color := $606060;
   Lbl.SetBounds(0, y, PrereqPage.SurfaceWidth, 18);
 end;
@@ -506,7 +506,7 @@ begin
     if Trim(DiscordTokenEdit.Text) = '' then
     begin
       MsgBox('El Token de Discord es obligatorio para que el bot funcione.' + #13#10 +
-             'Por favor ingresá tu token antes de continuar.', mbError, MB_OK);
+             'Por favor ingresa tu token antes de continuar.', mbError, MB_OK);
       Result := False;
     end;
   end;
@@ -532,7 +532,7 @@ begin
         '#                    THE REAL SEB - CONFIGURACION' + #13#10 +
         '# ============================================================================' + #13#10 +
         '# Generado automaticamente por el instalador' + #13#10 +
-        '# Podes editar este archivo manualmente si necesitas cambiar los valores' + #13#10 +
+        '# Puedes editar este archivo manualmente si necesitas cambiar los valores' + #13#10 +
         '# ============================================================================' + #13#10 + #13#10 +
         '# Discord Bot Token (OBLIGATORIO)' + #13#10 +
         'discord_token=' + DiscordTokenEdit.Text + #13#10 + #13#10 +
