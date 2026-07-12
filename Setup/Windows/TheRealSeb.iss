@@ -385,19 +385,19 @@ begin
   Lbl.Parent := PrereqPage.Surface;
   Lbl.Caption := 'Python 3.8+  —  Obligatorio';
   Lbl.Font.Style := [fsBold];
-  Lbl.SetBounds(0, y, 280, 18);
+  Lbl.SetBounds(0, y, 280, 20);
 
   PyStatusLbl := TLabel.Create(PrereqPage);
   PyStatusLbl.Parent := PrereqPage.Surface;
   PyStatusLbl.Caption := 'Verificando...';
   PyStatusLbl.Font.Style := [fsBold];
-  PyStatusLbl.SetBounds(295, y, 180, 18);
+  PyStatusLbl.SetBounds(295, y, 180, 20);
 
   y := y + 22;
   Lbl := TLabel.Create(PrereqPage);
   Lbl.Parent := PrereqPage.Surface;
   Lbl.Caption := 'Necesario para ejecutar el bot. Instala con "Add Python to PATH" activado.';
-  Lbl.SetBounds(0, y, PrereqPage.SurfaceWidth, 18);
+  Lbl.SetBounds(0, y, PrereqPage.SurfaceWidth, 20);
 
   y := y + 26;
   PyBtn := TNewButton.Create(PrereqPage);
@@ -421,19 +421,19 @@ begin
   Lbl.Parent := PrereqPage.Surface;
   Lbl.Caption := 'FFmpeg  —  Necesario para audio';
   Lbl.Font.Style := [fsBold];
-  Lbl.SetBounds(0, y, 280, 18);
+  Lbl.SetBounds(0, y, 280, 20);
 
   FfStatusLbl := TLabel.Create(PrereqPage);
   FfStatusLbl.Parent := PrereqPage.Surface;
   FfStatusLbl.Caption := 'Verificando...';
   FfStatusLbl.Font.Style := [fsBold];
-  FfStatusLbl.SetBounds(295, y, 180, 18);
+  FfStatusLbl.SetBounds(295, y, 180, 20);
 
   y := y + 22;
   Lbl := TLabel.Create(PrereqPage);
   Lbl.Parent := PrereqPage.Surface;
   Lbl.Caption := 'Sin FFmpeg el bot no reproduce audio. Reinicia Windows despues de instalarlo.';
-  Lbl.SetBounds(0, y, PrereqPage.SurfaceWidth, 18);
+  Lbl.SetBounds(0, y, PrereqPage.SurfaceWidth, 20);
 
   y := y + 26;
   FfBtn := TNewButton.Create(PrereqPage);
@@ -455,9 +455,9 @@ begin
 
   Lbl := TLabel.Create(PrereqPage);
   Lbl.Parent := PrereqPage.Surface;
-  Lbl.Caption := 'Después de instalar algo, haz clic en "Verificar de nuevo" para actualizar el estado.';
+  Lbl.Caption := 'Despues de instalar algo, haz clic en "Verificar de nuevo" para actualizar el estado.';
   Lbl.Font.Color := $606060;
-  Lbl.SetBounds(0, y, PrereqPage.SurfaceWidth, 18);
+  Lbl.SetBounds(0, y, PrereqPage.SurfaceWidth, 20);
 end;
 
 // ------------------------------------------------------------------
