@@ -389,7 +389,7 @@ def get_stats_trend():
             cursor.execute('''
                 SELECT DATE(played_at) as date, COUNT(*) as plays
                 FROM plays
-                WHERE played_at >= DATE('now', ?) AND guild_id = ?
+                WHERE played_at >= DATE('now', 'localtime', ?) AND guild_id = ?
                 GROUP BY DATE(played_at)
                 ORDER BY date ASC
             ''', (f'-{days} days', guild_id))
@@ -397,7 +397,7 @@ def get_stats_trend():
             cursor.execute('''
                 SELECT DATE(played_at) as date, COUNT(*) as plays
                 FROM plays
-                WHERE played_at >= DATE('now', ?)
+                WHERE played_at >= DATE('now', 'localtime', ?)
                 GROUP BY DATE(played_at)
                 ORDER BY date ASC
             ''', (f'-{days} days',))
@@ -409,12 +409,14 @@ def get_stats_trend():
 
         labels = []
         values = []
+        dates = []  # Fechas en formato YYYY-MM-DD para referencia del frontend
         for i in range(days, -1, -1):
             date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
             labels.append((datetime.now() - timedelta(days=i)).strftime('%d/%m'))
             values.append(date_counts.get(date, 0))
+            dates.append(date)
 
-        return jsonify({'labels': labels, 'values': values})
+        return jsonify({'labels': labels, 'values': values, 'dates': dates})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -438,7 +440,7 @@ def get_stats_hourly():
             cursor.execute('''
                 SELECT CAST(strftime('%H', played_at) AS INTEGER) as hour, COUNT(*) as plays
                 FROM plays
-                WHERE played_at >= DATE('now', ?) AND guild_id = ?
+                WHERE played_at >= DATE('now', 'localtime', ?) AND guild_id = ?
                 GROUP BY hour
                 ORDER BY hour ASC
             ''', (f'-{days} days', guild_id))
@@ -446,7 +448,7 @@ def get_stats_hourly():
             cursor.execute('''
                 SELECT CAST(strftime('%H', played_at) AS INTEGER) as hour, COUNT(*) as plays
                 FROM plays
-                WHERE played_at >= DATE('now', ?)
+                WHERE played_at >= DATE('now', 'localtime', ?)
                 GROUP BY hour
                 ORDER BY hour ASC
             ''', (f'-{days} days',))
@@ -457,13 +459,13 @@ def get_stats_hourly():
             cursor.execute('''
                 SELECT COUNT(DISTINCT DATE(played_at)) as active_days
                 FROM plays
-                WHERE played_at >= DATE('now', ?) AND guild_id = ?
+                WHERE played_at >= DATE('now', 'localtime', ?) AND guild_id = ?
             ''', (f'-{days} days', guild_id))
         else:
             cursor.execute('''
                 SELECT COUNT(DISTINCT DATE(played_at)) as active_days
                 FROM plays
-                WHERE played_at >= DATE('now', ?)
+                WHERE played_at >= DATE('now', 'localtime', ?)
             ''', (f'-{days} days',))
         active_days_row = cursor.fetchone()
         active_days = active_days_row['active_days'] if active_days_row else 1
@@ -509,7 +511,7 @@ def get_stats_daily():
             cursor.execute('''
                 SELECT CAST(strftime('%w', played_at) AS INTEGER) as dow, COUNT(*) as plays
                 FROM plays
-                WHERE played_at >= DATE('now', ?) AND guild_id = ?
+                WHERE played_at >= DATE('now', 'localtime', ?) AND guild_id = ?
                 GROUP BY dow
                 ORDER BY dow ASC
             ''', (f'-{days} days', guild_id))
@@ -517,7 +519,7 @@ def get_stats_daily():
             cursor.execute('''
                 SELECT CAST(strftime('%w', played_at) AS INTEGER) as dow, COUNT(*) as plays
                 FROM plays
-                WHERE played_at >= DATE('now', ?)
+                WHERE played_at >= DATE('now', 'localtime', ?)
                 GROUP BY dow
                 ORDER BY dow ASC
             ''', (f'-{days} days',))
@@ -530,7 +532,7 @@ def get_stats_daily():
                     CAST(strftime('%w', played_at) AS INTEGER) as dow,
                     COUNT(DISTINCT DATE(played_at)) as active_count
                 FROM plays
-                WHERE played_at >= DATE('now', ?) AND guild_id = ?
+                WHERE played_at >= DATE('now', 'localtime', ?) AND guild_id = ?
                 GROUP BY dow
             ''', (f'-{days} days', guild_id))
         else:
@@ -539,7 +541,7 @@ def get_stats_daily():
                     CAST(strftime('%w', played_at) AS INTEGER) as dow,
                     COUNT(DISTINCT DATE(played_at)) as active_count
                 FROM plays
-                WHERE played_at >= DATE('now', ?)
+                WHERE played_at >= DATE('now', 'localtime', ?)
                 GROUP BY dow
             ''', (f'-{days} days',))
         dow_active_rows = cursor.fetchall()
@@ -595,7 +597,7 @@ def get_stats_top_artists():
                 FROM plays p
                 JOIN tracks t ON p.track_id = t.id
                 JOIN artists a ON t.artist_id = a.id
-                WHERE p.played_at >= DATE('now', ?) AND p.guild_id = ?
+                WHERE p.played_at >= DATE('now', 'localtime', ?) AND p.guild_id = ?
                 GROUP BY a.id
                 ORDER BY plays DESC
                 LIMIT ?
@@ -606,7 +608,7 @@ def get_stats_top_artists():
                 FROM plays p
                 JOIN tracks t ON p.track_id = t.id
                 JOIN artists a ON t.artist_id = a.id
-                WHERE p.played_at >= DATE('now', ?)
+                WHERE p.played_at >= DATE('now', 'localtime', ?)
                 GROUP BY a.id
                 ORDER BY plays DESC
                 LIMIT ?
@@ -642,7 +644,7 @@ def get_stats_top_users():
                 SELECT u.display_name, u.username, COUNT(*) as plays
                 FROM plays p
                 JOIN users u ON p.requester_id = u.id
-                WHERE p.played_at >= DATE('now', ?) AND p.guild_id = ?
+                WHERE p.played_at >= DATE('now', 'localtime', ?) AND p.guild_id = ?
                 GROUP BY u.id
                 ORDER BY plays DESC
                 LIMIT ?
@@ -652,7 +654,7 @@ def get_stats_top_users():
                 SELECT u.display_name, u.username, COUNT(*) as plays
                 FROM plays p
                 JOIN users u ON p.requester_id = u.id
-                WHERE p.played_at >= DATE('now', ?)
+                WHERE p.played_at >= DATE('now', 'localtime', ?)
                 GROUP BY u.id
                 ORDER BY plays DESC
                 LIMIT ?
@@ -687,7 +689,7 @@ def get_stats_active_users():
             cursor.execute('''
                 SELECT DATE(played_at) as date, COUNT(DISTINCT requester_id) as users
                 FROM plays
-                WHERE played_at >= DATE('now', ?) AND guild_id = ?
+                WHERE played_at >= DATE('now', 'localtime', ?) AND guild_id = ?
                 GROUP BY DATE(played_at)
                 ORDER BY date ASC
             ''', (f'-{days} days', guild_id))
@@ -695,7 +697,7 @@ def get_stats_active_users():
             cursor.execute('''
                 SELECT DATE(played_at) as date, COUNT(DISTINCT requester_id) as users
                 FROM plays
-                WHERE played_at >= DATE('now', ?)
+                WHERE played_at >= DATE('now', 'localtime', ?)
                 GROUP BY DATE(played_at)
                 ORDER BY date ASC
             ''', (f'-{days} days',))
@@ -707,12 +709,14 @@ def get_stats_active_users():
 
         labels = []
         values = []
+        dates = []  # Fechas en formato YYYY-MM-DD para referencia del frontend
         for i in range(days, -1, -1):
             date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
             labels.append((datetime.now() - timedelta(days=i)).strftime('%d/%m'))
             values.append(date_counts.get(date, 0))
+            dates.append(date)
 
-        return jsonify({'labels': labels, 'values': values})
+        return jsonify({'labels': labels, 'values': values, 'dates': dates})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -727,22 +731,37 @@ def get_active_users_detail():
     if not date:
         return jsonify({'error': 'Date parameter required'}), 400
 
+    guild_id = request.args.get('guild_id', type=int)
+
     try:
         conn = get_connection()
         cursor = conn.cursor()
 
-        # Obtener usuarios que hicieron reproducciones ese dia con su conteo
-        cursor.execute('''
-            SELECT
-                u.display_name,
-                u.username,
-                COUNT(*) as plays
-            FROM plays p
-            JOIN users u ON p.requester_id = u.id
-            WHERE DATE(p.played_at) = ?
-            GROUP BY u.id
-            ORDER BY plays DESC
-        ''', (date,))
+        # Obtener usuarios que hicieron reproducciones ese dia con su conteo (con filtro opcional de servidor)
+        if guild_id:
+            cursor.execute('''
+                SELECT
+                    u.display_name,
+                    u.username,
+                    COUNT(*) as plays
+                FROM plays p
+                JOIN users u ON p.requester_id = u.id
+                WHERE DATE(p.played_at) = ? AND p.guild_id = ?
+                GROUP BY u.id
+                ORDER BY plays DESC
+            ''', (date, guild_id))
+        else:
+            cursor.execute('''
+                SELECT
+                    u.display_name,
+                    u.username,
+                    COUNT(*) as plays
+                FROM plays p
+                JOIN users u ON p.requester_id = u.id
+                WHERE DATE(p.played_at) = ?
+                GROUP BY u.id
+                ORDER BY plays DESC
+            ''', (date,))
         users = cursor.fetchall()
         conn.close()
 
@@ -766,26 +785,45 @@ def get_day_detail():
     if not date:
         return jsonify({'error': 'Date parameter required'}), 400
 
+    guild_id = request.args.get('guild_id', type=int)
+
     try:
         conn = get_connection()
         cursor = conn.cursor()
 
-        # Obtener reproducciones del dia con info de listeners
-        cursor.execute('''
-            SELECT
-                p.id as play_id,
-                t.title,
-                a.name as artist,
-                p.played_at,
-                u.display_name as requester_display,
-                u.username as requester_username
-            FROM plays p
-            JOIN tracks t ON p.track_id = t.id
-            LEFT JOIN artists a ON t.artist_id = a.id
-            JOIN users u ON p.requester_id = u.id
-            WHERE DATE(p.played_at) = ?
-            ORDER BY p.played_at ASC
-        ''', (date,))
+        # Obtener reproducciones del dia con info de listeners (con filtro opcional de servidor)
+        if guild_id:
+            cursor.execute('''
+                SELECT
+                    p.id as play_id,
+                    t.title,
+                    a.name as artist,
+                    p.played_at,
+                    u.display_name as requester_display,
+                    u.username as requester_username
+                FROM plays p
+                JOIN tracks t ON p.track_id = t.id
+                LEFT JOIN artists a ON t.artist_id = a.id
+                JOIN users u ON p.requester_id = u.id
+                WHERE DATE(p.played_at) = ? AND p.guild_id = ?
+                ORDER BY p.played_at ASC
+            ''', (date, guild_id))
+        else:
+            cursor.execute('''
+                SELECT
+                    p.id as play_id,
+                    t.title,
+                    a.name as artist,
+                    p.played_at,
+                    u.display_name as requester_display,
+                    u.username as requester_username
+                FROM plays p
+                JOIN tracks t ON p.track_id = t.id
+                LEFT JOIN artists a ON t.artist_id = a.id
+                JOIN users u ON p.requester_id = u.id
+                WHERE DATE(p.played_at) = ?
+                ORDER BY p.played_at ASC
+            ''', (date,))
         plays = cursor.fetchall()
 
         # Para cada play, obtener los listeners
@@ -1173,7 +1211,7 @@ def get_user_profile(user_id):
         cursor.execute('''
             SELECT DATE(played_at) as date, COUNT(*) as plays
             FROM plays
-            WHERE requester_id = ? AND played_at >= DATE('now', '-7 days')
+            WHERE requester_id = ? AND played_at >= DATE('now', 'localtime', '-7 days')
             GROUP BY DATE(played_at)
             ORDER BY date ASC
         ''', (user_id,))
@@ -1279,7 +1317,7 @@ def compare_users():
                     COUNT(DISTINCT t.artist_id) as unique_artists
                 FROM plays p
                 JOIN tracks t ON p.track_id = t.id
-                WHERE p.requester_id = ? AND p.played_at >= DATE('now', ?)
+                WHERE p.requester_id = ? AND p.played_at >= DATE('now', 'localtime', ?)
             ''', (user_id, f'-{days} days'))
             stats = cursor.fetchone()
 
@@ -1289,7 +1327,7 @@ def compare_users():
                 FROM plays p
                 JOIN tracks t ON p.track_id = t.id
                 JOIN artists a ON t.artist_id = a.id
-                WHERE p.requester_id = ? AND p.played_at >= DATE('now', ?)
+                WHERE p.requester_id = ? AND p.played_at >= DATE('now', 'localtime', ?)
                 GROUP BY a.id
                 ORDER BY plays DESC
                 LIMIT 1
@@ -1301,7 +1339,7 @@ def compare_users():
                 SELECT t.title, COUNT(*) as plays
                 FROM plays p
                 JOIN tracks t ON p.track_id = t.id
-                WHERE p.requester_id = ? AND p.played_at >= DATE('now', ?)
+                WHERE p.requester_id = ? AND p.played_at >= DATE('now', 'localtime', ?)
                 GROUP BY t.id
                 ORDER BY plays DESC
                 LIMIT 1
@@ -1312,7 +1350,7 @@ def compare_users():
             cursor.execute('''
                 SELECT CAST(strftime('%H', played_at) AS INTEGER) as hour, COUNT(*) as plays
                 FROM plays
-                WHERE requester_id = ? AND played_at >= DATE('now', ?)
+                WHERE requester_id = ? AND played_at >= DATE('now', 'localtime', ?)
                 GROUP BY hour
                 ORDER BY plays DESC
                 LIMIT 1
@@ -1365,7 +1403,7 @@ def get_stats_heatmap():
                     CAST(strftime('%H', played_at) AS INTEGER) as hour,
                     COUNT(*) as plays
                 FROM plays
-                WHERE played_at >= DATE('now', ?) AND guild_id = ?
+                WHERE played_at >= DATE('now', 'localtime', ?) AND guild_id = ?
                 GROUP BY dow, hour
             ''', (f'-{days} days', guild_id))
         else:
@@ -1375,7 +1413,7 @@ def get_stats_heatmap():
                     CAST(strftime('%H', played_at) AS INTEGER) as hour,
                     COUNT(*) as plays
                 FROM plays
-                WHERE played_at >= DATE('now', ?)
+                WHERE played_at >= DATE('now', 'localtime', ?)
                 GROUP BY dow, hour
             ''', (f'-{days} days',))
         rows = cursor.fetchall()

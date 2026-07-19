@@ -142,11 +142,15 @@ const ProfileModal = (function() {
             activityMap[item.date] = item.plays;
         });
 
-        // Generar ultimos 7 dias
+        // Generar ultimos 7 dias (usando fecha local, no UTC)
         for (let i = 6; i >= 0; i--) {
             const date = new Date();
             date.setDate(date.getDate() - i);
-            const dateStr = date.toISOString().split('T')[0];
+            // Usar formato local en lugar de toISOString() que convierte a UTC
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${day}`;
             const dayName = date.toLocaleDateString('es-ES', { weekday: 'short' });
             labels.push(dayName);
             values.push(activityMap[dateStr] || 0);

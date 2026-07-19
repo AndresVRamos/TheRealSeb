@@ -121,13 +121,8 @@ async function loadTrendChart() {
             return;
         }
 
-        // Guardar fechas en formato YYYY-MM-DD para referencia
-        trendDates = [];
-        for (let i = currentRange; i >= 0; i--) {
-            const date = new Date();
-            date.setDate(date.getDate() - i);
-            trendDates.push(date.toISOString().split('T')[0]);
-        }
+        // Usar fechas del backend para evitar desfases de zona horaria
+        trendDates = data.dates || [];
 
         const ctx = document.getElementById('trend-chart').getContext('2d');
         const config = getBaseConfig();
@@ -447,13 +442,8 @@ async function loadActiveUsersChart() {
             return;
         }
 
-        // Guardar fechas en formato YYYY-MM-DD para referencia
-        activeUsersDates = [];
-        for (let i = currentRange; i >= 0; i--) {
-            const date = new Date();
-            date.setDate(date.getDate() - i);
-            activeUsersDates.push(date.toISOString().split('T')[0]);
-        }
+        // Usar fechas del backend para evitar desfases de zona horaria
+        activeUsersDates = data.dates || [];
 
         const ctx = document.getElementById('active-users-chart').getContext('2d');
         const config = getBaseConfig();
@@ -882,7 +872,11 @@ async function showDayDetail(date, label) {
     empty.style.display = 'none';
 
     try {
-        const response = await fetch(`/api/stats/day-detail?date=${date}`);
+        let url = `/api/stats/day-detail?date=${date}`;
+        if (currentServer) {
+            url += `&guild_id=${currentServer}`;
+        }
+        const response = await fetch(url);
         const data = await response.json();
 
         loading.style.display = 'none';
@@ -959,7 +953,11 @@ async function showActiveUsersDetail(date, label) {
     empty.style.display = 'none';
 
     try {
-        const response = await fetch(`/api/stats/active-users-detail?date=${date}`);
+        let url = `/api/stats/active-users-detail?date=${date}`;
+        if (currentServer) {
+            url += `&guild_id=${currentServer}`;
+        }
+        const response = await fetch(url);
         const data = await response.json();
 
         loading.style.display = 'none';
