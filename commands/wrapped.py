@@ -8,11 +8,21 @@ from discord import app_commands
 from datetime import datetime
 from typing import Optional
 
-from core.wrapped import generate_wrapped, create_wrapped_summary_embed, format_time_detailed
-from core.database.queries import get_user_yearly_stats
+from core.database.queries import (
+    get_user_yearly_stats,
+    get_user_monthly_breakdown,
+    get_user_records,
+    get_user_rank_in_server,
+    get_unique_songs_for_user,
+    get_artist_discovery_timeline,
+    get_favorite_changes,
+    get_top_artist_growth,
+    compare_users_wrapped
+)
 from core.config import WRAPPED_MIN_YEAR, WRAPPED_TOP_ARTISTS_LIMIT
-from core.formatters import format_duration
+from core.formatters import format_duration, create_comparison_bars
 from core.decorators import command_category
+from views.wrapped_navigator import WrappedNavigator
 
 
 class WrappedCommands(commands.Cog):
@@ -53,9 +63,10 @@ class WrappedCommands(commands.Cog):
         loading_msg = await ctx.send(f"🔄 **Generando tu Wrapped {year}...**")
 
         try:
-            embed = await generate_wrapped(member, ctx.guild, year)
+            # Obtener estadísticas básicas
+            stats = get_user_yearly_stats(member.id, ctx.guild.id, year)
 
-            if embed is None:
+            if stats is None:
                 if member == ctx.author:
                     await loading_msg.edit(
                         content=f"🚫 No tienes reproducciones registradas en {year}.\n"
@@ -67,168 +78,35 @@ class WrappedCommands(commands.Cog):
                     )
                 return
 
-            await loading_msg.edit(content=None, embed=embed)
+            # Obtener datos extendidos
+            extended_data = {
+                'monthly_breakdown': get_user_monthly_breakdown(member.id, ctx.guild.id, year),
+                'records': get_user_records(member.id, ctx.guild.id, year),
+                'rank': get_user_rank_in_server(member.id, ctx.guild.id, year),
+                'unique_songs': get_unique_songs_for_user(member.id, ctx.guild.id, year),
+                'discovery_timeline': get_artist_discovery_timeline(member.id, ctx.guild.id, year),
+                'favorite_changes': get_favorite_changes(member.id, ctx.guild.id, year),
+                'top_artist_growth': get_top_artist_growth(member.id, ctx.guild.id, year, year - 1)
+            }
+
+            # Crear vista interactiva
+            view = WrappedNavigator(ctx, member, stats, extended_data)
+            first_embed = view.embeds[0]
+
+            # Editar mensaje con el primer embed y la vista
+            await loading_msg.edit(content=None, embed=first_embed, view=view)
+            view.message = loading_msg
 
         except Exception as e:
             await loading_msg.edit(content=f"⚠️ Error al generar el Wrapped: {e}")
 
-    @commands.command(name="wrappedsummary", aliases=["ws"], help="Muestra un resumen rápido de tu Wrapped.")
-    @command_category("wrapped")
-    async def wrapped_summary(self, ctx, member: Optional[discord.Member] = None, year: Optional[int] = None):
-        """
-        Genera un resumen rápido de Wrapped.
-
-        Uso:
-            .wrappedsummary - Resumen rápido del año actual
-            .ws @user - Resumen rápido de otro usuario
-        """
-        if member is None:
-            member = ctx.author
-        if year is None:
-            year = datetime.now().year
-
-        current_year = datetime.now().year
-        if year < WRAPPED_MIN_YEAR or year > current_year:
-            await ctx.send(f"🚫 El año debe estar entre {WRAPPED_MIN_YEAR} y {current_year}.")
-            return
-
-        stats = get_user_yearly_stats(member.id, ctx.guild.id, year)
-
-        if stats is None:
-            if member == ctx.author:
-                await ctx.send(f"🚫 No tienes reproducciones registradas en {year}.")
-            else:
-                await ctx.send(f"🚫 **{member.display_name}** no tiene reproducciones registradas en {year}.")
-            return
-
-        embed = create_wrapped_summary_embed(member, stats, ctx.guild)
-        await ctx.send(embed=embed)
-
-    @commands.command(name="topartists", help="Muestra tus artistas más escuchados del año.")
-    @command_category("wrapped")
-    async def top_artists(self, ctx, member: Optional[discord.Member] = None, year: Optional[int] = None):
-        """
-        Muestra los top artistas de un usuario en un año.
-
-        Uso:
-            .topartists - Tus top artistas de este año
-            .topartists @user - Top artistas de otro usuario
-            .topartists 2024 - Tus top artistas en 2024
-        """
-        if member is None:
-            member = ctx.author
-        if year is None:
-            year = datetime.now().year
-
-        if isinstance(member, int) or (hasattr(member, 'isdigit') and member.isdigit()):
-            year = int(member)
-            member = ctx.author
-
-        stats = get_user_yearly_stats(member.id, ctx.guild.id, year)
-
-        if stats is None or not stats.get('top_artists'):
-            if member == ctx.author:
-                await ctx.send(f"🚫 No tienes artistas registrados en {year}.")
-            else:
-                await ctx.send(f"🚫 **{member.display_name}** no tiene artistas registrados en {year}.")
-            return
-
-        embed = discord.Embed(
-            title=f"🎤 Top Artistas {year}",
-            description=f"**{member.display_name}** en **{ctx.guild.name}**",
-            color=discord.Color.purple()
-        )
-        embed.set_thumbnail(url=member.display_avatar.url)
-
-        top_artists_text = []
-        medals = ["🥇", "🥈", "🥉"] + [f"{i}." for i in range(4, WRAPPED_TOP_ARTISTS_LIMIT + 1)]
-        for i, artist in enumerate(stats['top_artists'][:WRAPPED_TOP_ARTISTS_LIMIT]):
-            time_with_artist = format_duration(artist['total_time'])
-            top_artists_text.append(
-                f"{medals[i]} **{artist['name']}**\n"
-                f"   └ {artist['play_count']} canciones ({time_with_artist})"
-            )
-
-        embed.add_field(
-            name="Tus artistas favoritos",
-            value="\n".join(top_artists_text),
-            inline=False
-        )
-
-        embed.set_footer(text=f"Wrapped {year} | {ctx.guild.name}")
-        await ctx.send(embed=embed)
-
-    @commands.command(name="listeningtime", aliases=["lt"], help="Muestra cuánto tiempo has escuchado música.")
-    @command_category("wrapped")
-    async def listening_time(self, ctx, member: Optional[discord.Member] = None, year: Optional[int] = None):
-        """
-        Muestra el tiempo total de escucha de un usuario.
-
-        Uso:
-            .listeningtime - Tu tiempo de escucha este año
-            .lt @user - Tiempo de escucha de otro usuario
-        """
-        if member is None:
-            member = ctx.author
-        if year is None:
-            year = datetime.now().year
-
-        stats = get_user_yearly_stats(member.id, ctx.guild.id, year)
-
-        if stats is None:
-            if member == ctx.author:
-                await ctx.send(f"🚫 No tienes reproducciones registradas en {year}.")
-            else:
-                await ctx.send(f"🚫 **{member.display_name}** no tiene reproducciones registradas en {year}.")
-            return
-
-        total_time = stats['total_time_seconds']
-        hours = total_time // 3600
-        minutes = (total_time % 3600) // 60
-
-        embed = discord.Embed(
-            title=f"⏱️ Tiempo de Escucha {year}",
-            color=discord.Color.green()
-        )
-        embed.set_thumbnail(url=member.display_avatar.url)
-
-        comparisons = []
-        if hours >= 24:
-            days = hours / 24
-            comparisons.append(f"🌍 ¡Eso es **{days:.1f} días** de música continua!")
-        if hours >= 2:
-            movies = hours / 2
-            comparisons.append(f"🎬 ¡Podrías ver **{int(movies)} películas** en ese tiempo!")
-        if total_time >= 180:  # Al menos 3 minutos (1 canción)
-            songs = total_time / 210  # Canción promedio ~3.5 min
-            comparisons.append(f"🎵 ¡Aproximadamente **{int(songs)} canciones** promedio!")
-
-        time_text = format_time_detailed(total_time)
-
-        embed.add_field(
-            name=f"**{member.display_name}**",
-            value=f"🎧 **{time_text}**\n🔢 **{stats['total_plays']:,}** reproducciones",
-            inline=False
-        )
-
-        if comparisons:
-            embed.add_field(
-                name="Datos curiosos",
-                value="\n".join(comparisons),
-                inline=False
-            )
-
-        embed.set_footer(text=f"{ctx.guild.name} | {year}")
-        await ctx.send(embed=embed)
-
     @commands.command(name="streak", help="Muestra tu racha de días escuchando música.")
-    @command_category("wrapped")
     async def streak(self, ctx, member: Optional[discord.Member] = None):
         """
         Muestra la racha de escucha de un usuario.
 
         Uso:
-            .streak - Tu racha
+            .streak - Tu racha actual
             .streak @user - Racha de otro usuario
         """
         if member is None:
@@ -269,15 +147,15 @@ class WrappedCommands(commands.Cog):
         )
 
         if current_streak == 0:
-            message = "Empieza tu racha hoy!"
+            message = "¡Empieza tu racha hoy!"
         elif current_streak < 3:
-            message = "Sigue construyendo tu racha!"
+            message = "¡Sigue construyendo tu racha!"
         elif current_streak < 7:
-            message = "Bien! Casi una semana!"
+            message = "¡Bien! Casi una semana!"
         elif current_streak < 30:
-            message = "WOW! Puedes llegar al mes!"
+            message = "¡WOW! ¡Puedes llegar al mes!"
         else:
-            message = "Más de un Mes! Verdaderamente eres el GOAT!"
+            message = "¡Más de un mes! ¡Verdaderamente eres el GOAT!"
 
         embed.add_field(
             name="💬",
@@ -287,6 +165,159 @@ class WrappedCommands(commands.Cog):
 
         embed.set_footer(text=ctx.guild.name)
         await ctx.send(embed=embed)
+
+    @commands.command(name="wrappedbattle", aliases=["wb"], help="Compara tu Wrapped con otro usuario.")
+    @command_category("wrapped")
+    async def wrapped_battle(self, ctx, member: discord.Member, year: Optional[int] = None):
+        """
+        Batalla de Wrapped 1v1 con otro usuario.
+
+        Uso:
+            .wrappedbattle @user - Batalla del año actual
+            .wb @user 2024 - Batalla de un año específico
+        """
+        if year is None:
+            year = datetime.now().year
+
+        current_year = datetime.now().year
+        if year < WRAPPED_MIN_YEAR or year > current_year:
+            await ctx.send(f"🚫 El año debe estar entre {WRAPPED_MIN_YEAR} y {current_year}.")
+            return
+
+        if member == ctx.author:
+            await ctx.send("🚫 No puedes batallar contra ti mismo!")
+            return
+
+        loading_msg = await ctx.send(f"⚔️ **Preparando batalla Wrapped {year}...**")
+
+        try:
+            # Obtener comparación entre usuarios
+            comparison = compare_users_wrapped(ctx.author.id, member.id, ctx.guild.id, year)
+
+            if comparison is None:
+                await loading_msg.edit(
+                    content=f"🚫 No hay suficientes datos para comparar en {year}.\n"
+                    f"Ambos usuarios deben tener reproducciones registradas."
+                )
+                return
+
+            # Crear embed de batalla
+            embed = discord.Embed(
+                title=f"⚔️ Wrapped Battle {year}",
+                description=f"**{ctx.author.display_name}** vs **{member.display_name}**",
+                color=discord.Color.gold()
+            )
+            embed.set_thumbnail(url=ctx.guild.icon.url if ctx.guild.icon else None)
+
+            # Categoría 1: Tiempo Total
+            time_comparison = create_comparison_bars(
+                comparison['user1']['total_time_seconds'],
+                comparison['user2']['total_time_seconds'],
+                ctx.author.display_name,
+                member.display_name,
+                "⏱️ Tiempo Total",
+                max_width=15,
+                value_type="hours"
+            )
+            embed.add_field(name="\u200b", value=time_comparison, inline=False)
+
+            # Categoría 2: Variedad (canciones únicas)
+            variety_comparison = create_comparison_bars(
+                comparison['user1']['unique_tracks'],
+                comparison['user2']['unique_tracks'],
+                ctx.author.display_name,
+                member.display_name,
+                "🎵 Variedad Musical",
+                max_width=15,
+                value_type="count"
+            )
+            embed.add_field(name="\u200b", value=variety_comparison, inline=False)
+
+            # Categoría 3: Exploración (artistas únicos)
+            exploration_comparison = create_comparison_bars(
+                comparison['user1']['unique_artists'],
+                comparison['user2']['unique_artists'],
+                ctx.author.display_name,
+                member.display_name,
+                "🔭 Exploración",
+                max_width=15,
+                value_type="count"
+            )
+            embed.add_field(name="\u200b", value=exploration_comparison, inline=False)
+
+            # Categoría 4: Lealtad (plays del top artista)
+            loyalty_comparison = create_comparison_bars(
+                comparison['user1']['top_artist_plays'],
+                comparison['user2']['top_artist_plays'],
+                ctx.author.display_name,
+                member.display_name,
+                "💎 Lealtad",
+                max_width=15,
+                value_type="count"
+            )
+            embed.add_field(name="\u200b", value=loyalty_comparison, inline=False)
+
+            # Categoría 5: Racha más larga
+            streak_comparison = create_comparison_bars(
+                comparison['user1']['longest_streak'],
+                comparison['user2']['longest_streak'],
+                ctx.author.display_name,
+                member.display_name,
+                "🔥 Racha Máxima",
+                max_width=15,
+                value_type="days"
+            )
+            embed.add_field(name="\u200b", value=streak_comparison, inline=False)
+
+            # Determinar ganador global
+            user1_wins = 0
+            user2_wins = 0
+
+            if comparison['user1']['total_time_seconds'] > comparison['user2']['total_time_seconds']:
+                user1_wins += 1
+            elif comparison['user2']['total_time_seconds'] > comparison['user1']['total_time_seconds']:
+                user2_wins += 1
+
+            if comparison['user1']['unique_tracks'] > comparison['user2']['unique_tracks']:
+                user1_wins += 1
+            elif comparison['user2']['unique_tracks'] > comparison['user1']['unique_tracks']:
+                user2_wins += 1
+
+            if comparison['user1']['unique_artists'] > comparison['user2']['unique_artists']:
+                user1_wins += 1
+            elif comparison['user2']['unique_artists'] > comparison['user1']['unique_artists']:
+                user2_wins += 1
+
+            if comparison['user1']['top_artist_plays'] > comparison['user2']['top_artist_plays']:
+                user1_wins += 1
+            elif comparison['user2']['top_artist_plays'] > comparison['user1']['top_artist_plays']:
+                user2_wins += 1
+
+            if comparison['user1']['longest_streak'] > comparison['user2']['longest_streak']:
+                user1_wins += 1
+            elif comparison['user2']['longest_streak'] > comparison['user1']['longest_streak']:
+                user2_wins += 1
+
+            # Resultado final
+            if user1_wins > user2_wins:
+                winner_text = f"🏆 **{ctx.author.display_name}** gana la batalla! ({user1_wins}-{user2_wins})"
+            elif user2_wins > user1_wins:
+                winner_text = f"🏆 **{member.display_name}** gana la batalla! ({user2_wins}-{user1_wins})"
+            else:
+                winner_text = f"🤝 ¡Empate perfecto! ({user1_wins}-{user2_wins})"
+
+            embed.add_field(
+                name="📊 Resultado Final",
+                value=winner_text,
+                inline=False
+            )
+
+            embed.set_footer(text=f"Wrapped Battle {year} | {ctx.guild.name}")
+
+            await loading_msg.edit(content=None, embed=embed)
+
+        except Exception as e:
+            await loading_msg.edit(content=f"⚠️ Error al generar la batalla: {e}")
 
     # ==========================================
     # SLASH COMMANDS
@@ -315,9 +346,10 @@ class WrappedCommands(commands.Cog):
             return
 
         try:
-            embed = await generate_wrapped(member, interaction.guild, year)
+            # Obtener estadísticas básicas
+            stats = get_user_yearly_stats(member.id, interaction.guild.id, year)
 
-            if embed is None:
+            if stats is None:
                 if member == interaction.user:
                     await interaction.followup.send(
                         f"🚫 No tienes reproducciones registradas en {year}.\n"
@@ -329,143 +361,27 @@ class WrappedCommands(commands.Cog):
                     )
                 return
 
-            await interaction.followup.send(embed=embed)
+            # Obtener datos extendidos
+            extended_data = {
+                'monthly_breakdown': get_user_monthly_breakdown(member.id, interaction.guild.id, year),
+                'records': get_user_records(member.id, interaction.guild.id, year),
+                'rank': get_user_rank_in_server(member.id, interaction.guild.id, year),
+                'unique_songs': get_unique_songs_for_user(member.id, interaction.guild.id, year),
+                'discovery_timeline': get_artist_discovery_timeline(member.id, interaction.guild.id, year),
+                'favorite_changes': get_favorite_changes(member.id, interaction.guild.id, year),
+                'top_artist_growth': get_top_artist_growth(member.id, interaction.guild.id, year, year - 1)
+            }
+
+            # Crear vista interactiva (pasar interaction en lugar de ctx)
+            view = WrappedNavigator(interaction, member, stats, extended_data)
+            first_embed = view.embeds[0]
+
+            # Enviar mensaje con el primer embed y la vista
+            msg = await interaction.followup.send(embed=first_embed, view=view)
+            view.message = msg
 
         except Exception as e:
             await interaction.followup.send(f"⚠️ Error al generar el Wrapped: {e}")
-
-    @app_commands.command(name="wrappedsummary", description="Muestra un resumen rápido del Wrapped")
-    @app_commands.describe(usuario="Usuario del que ver el resumen (opcional)")
-    async def wrappedsummary_slash(
-        self,
-        interaction: discord.Interaction,
-        usuario: Optional[discord.Member] = None
-    ):
-        member = usuario if usuario else interaction.user
-        year = datetime.now().year
-
-        stats = get_user_yearly_stats(member.id, interaction.guild_id, year)
-
-        if stats is None:
-            if member == interaction.user:
-                await interaction.response.send_message(f"🚫 No tienes reproducciones registradas en {year}.")
-            else:
-                await interaction.response.send_message(f"🚫 **{member.display_name}** no tiene reproducciones registradas en {year}.")
-            return
-
-        embed = create_wrapped_summary_embed(member, stats, interaction.guild)
-        await interaction.response.send_message(embed=embed)
-
-    @app_commands.command(name="topartists", description="Muestra tus artistas más escuchados del año")
-    @app_commands.describe(
-        usuario="Usuario del que ver los artistas (opcional)",
-        year="Año (opcional, por defecto el actual)"
-    )
-    async def topartists_slash(
-        self,
-        interaction: discord.Interaction,
-        usuario: Optional[discord.Member] = None,
-        year: Optional[int] = None
-    ):
-        member = usuario if usuario else interaction.user
-        if year is None:
-            year = datetime.now().year
-
-        stats = get_user_yearly_stats(member.id, interaction.guild_id, year)
-
-        if stats is None or not stats.get('top_artists'):
-            if member == interaction.user:
-                await interaction.response.send_message(f"🚫 No tienes artistas registrados en {year}.")
-            else:
-                await interaction.response.send_message(f"🚫 **{member.display_name}** no tiene artistas registrados en {year}.")
-            return
-
-        embed = discord.Embed(
-            title=f"🎤 Top Artistas {year}",
-            description=f"**{member.display_name}** en **{interaction.guild.name}**",
-            color=discord.Color.purple()
-        )
-        embed.set_thumbnail(url=member.display_avatar.url)
-
-        top_artists_text = []
-        medals = ["🥇", "🥈", "🥉"] + [f"{i}." for i in range(4, WRAPPED_TOP_ARTISTS_LIMIT + 1)]
-        for i, artist in enumerate(stats['top_artists'][:WRAPPED_TOP_ARTISTS_LIMIT]):
-            time_with_artist = format_duration(artist['total_time'])
-            top_artists_text.append(
-                f"{medals[i]} **{artist['name']}**\n"
-                f"   └ {artist['play_count']} canciones ({time_with_artist})"
-            )
-
-        embed.add_field(
-            name="Tus artistas favoritos",
-            value="\n".join(top_artists_text),
-            inline=False
-        )
-
-        embed.set_footer(text=f"Wrapped {year} | {interaction.guild.name}")
-        await interaction.response.send_message(embed=embed)
-
-    @app_commands.command(name="listeningtime", description="Muestra cuánto tiempo has escuchado música")
-    @app_commands.describe(
-        usuario="Usuario del que ver el tiempo (opcional)",
-        year="Año (opcional, por defecto el actual)"
-    )
-    async def listeningtime_slash(
-        self,
-        interaction: discord.Interaction,
-        usuario: Optional[discord.Member] = None,
-        year: Optional[int] = None
-    ):
-        member = usuario if usuario else interaction.user
-        if year is None:
-            year = datetime.now().year
-
-        stats = get_user_yearly_stats(member.id, interaction.guild_id, year)
-
-        if stats is None:
-            if member == interaction.user:
-                await interaction.response.send_message(f"🚫 No tienes reproducciones registradas en {year}.")
-            else:
-                await interaction.response.send_message(f"🚫 **{member.display_name}** no tiene reproducciones registradas en {year}.")
-            return
-
-        total_time = stats['total_time_seconds']
-        hours = total_time // 3600
-
-        embed = discord.Embed(
-            title=f"⏱️ Tiempo de Escucha {year}",
-            color=discord.Color.green()
-        )
-        embed.set_thumbnail(url=member.display_avatar.url)
-
-        comparisons = []
-        if hours >= 24:
-            days = hours / 24
-            comparisons.append(f"🌍 ¡Eso es **{days:.1f} días** de música continua!")
-        if hours >= 2:
-            movies = hours / 2
-            comparisons.append(f"🎬 ¡Podrías ver **{int(movies)} películas** en ese tiempo!")
-        if total_time >= 180:
-            songs = total_time / 210
-            comparisons.append(f"🎵 ¡Aproximadamente **{int(songs)} canciones** promedio!")
-
-        time_text = format_time_detailed(total_time)
-
-        embed.add_field(
-            name=f"**{member.display_name}**",
-            value=f"🎧 **{time_text}**\n🔢 **{stats['total_plays']:,}** reproducciones",
-            inline=False
-        )
-
-        if comparisons:
-            embed.add_field(
-                name="Datos curiosos",
-                value="\n".join(comparisons),
-                inline=False
-            )
-
-        embed.set_footer(text=f"{interaction.guild.name} | {year}")
-        await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="streak", description="Muestra tu racha de días escuchando música")
     @app_commands.describe(usuario="Usuario del que ver la racha (opcional)")
@@ -511,15 +427,15 @@ class WrappedCommands(commands.Cog):
         )
 
         if current_streak == 0:
-            message = "Empieza tu racha hoy!"
+            message = "¡Empieza tu racha hoy!"
         elif current_streak < 3:
-            message = "Sigue construyendo tu racha!"
+            message = "¡Sigue construyendo tu racha!"
         elif current_streak < 7:
-            message = "Bien! Casi una semana!"
+            message = "¡Bien! Casi una semana!"
         elif current_streak < 30:
-            message = "WOW! Puedes llegar al mes!"
+            message = "¡WOW! ¡Puedes llegar al mes!"
         else:
-            message = "Más de un Mes! Verdaderamente eres el GOAT!"
+            message = "¡Más de un mes! ¡Verdaderamente eres el GOAT!"
 
         embed.add_field(
             name="💬",
@@ -529,6 +445,166 @@ class WrappedCommands(commands.Cog):
 
         embed.set_footer(text=interaction.guild.name)
         await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="wrappedbattle", description="Compara tu Wrapped con otro usuario")
+    @app_commands.describe(
+        usuario="Usuario con el que competir",
+        year="Año (opcional, por defecto el actual)"
+    )
+    async def wrappedbattle_slash(
+        self,
+        interaction: discord.Interaction,
+        usuario: discord.Member,
+        year: Optional[int] = None
+    ):
+        if year is None:
+            year = datetime.now().year
+
+        current_year = datetime.now().year
+        if year < WRAPPED_MIN_YEAR or year > current_year:
+            await interaction.response.send_message(
+                f"🚫 El año debe estar entre {WRAPPED_MIN_YEAR} y {current_year}.",
+                ephemeral=True
+            )
+            return
+
+        if usuario == interaction.user:
+            await interaction.response.send_message(
+                "🚫 No puedes batallar contra ti mismo!",
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.defer()
+
+        try:
+            # Obtener comparación entre usuarios
+            comparison = compare_users_wrapped(interaction.user.id, usuario.id, interaction.guild_id, year)
+
+            if comparison is None:
+                await interaction.followup.send(
+                    f"🚫 No hay suficientes datos para comparar en {year}.\n"
+                    f"Ambos usuarios deben tener reproducciones registradas."
+                )
+                return
+
+            # Crear embed de batalla
+            embed = discord.Embed(
+                title=f"⚔️ Wrapped Battle {year}",
+                description=f"**{interaction.user.display_name}** vs **{usuario.display_name}**",
+                color=discord.Color.gold()
+            )
+            embed.set_thumbnail(url=interaction.guild.icon.url if interaction.guild.icon else None)
+
+            # Categoría 1: Tiempo Total
+            time_comparison = create_comparison_bars(
+                comparison['user1']['total_time_seconds'],
+                comparison['user2']['total_time_seconds'],
+                interaction.user.display_name,
+                usuario.display_name,
+                "⏱️ Tiempo Total",
+                max_width=15,
+                value_type="hours"
+            )
+            embed.add_field(name="\u200b", value=time_comparison, inline=False)
+
+            # Categoría 2: Variedad (canciones únicas)
+            variety_comparison = create_comparison_bars(
+                comparison['user1']['unique_tracks'],
+                comparison['user2']['unique_tracks'],
+                interaction.user.display_name,
+                usuario.display_name,
+                "🎵 Variedad Musical",
+                max_width=15,
+                value_type="count"
+            )
+            embed.add_field(name="\u200b", value=variety_comparison, inline=False)
+
+            # Categoría 3: Exploración (artistas únicos)
+            exploration_comparison = create_comparison_bars(
+                comparison['user1']['unique_artists'],
+                comparison['user2']['unique_artists'],
+                interaction.user.display_name,
+                usuario.display_name,
+                "🔭 Exploración",
+                max_width=15,
+                value_type="count"
+            )
+            embed.add_field(name="\u200b", value=exploration_comparison, inline=False)
+
+            # Categoría 4: Lealtad (plays del top artista)
+            loyalty_comparison = create_comparison_bars(
+                comparison['user1']['top_artist_plays'],
+                comparison['user2']['top_artist_plays'],
+                interaction.user.display_name,
+                usuario.display_name,
+                "💎 Lealtad",
+                max_width=15,
+                value_type="count"
+            )
+            embed.add_field(name="\u200b", value=loyalty_comparison, inline=False)
+
+            # Categoría 5: Racha más larga
+            streak_comparison = create_comparison_bars(
+                comparison['user1']['longest_streak'],
+                comparison['user2']['longest_streak'],
+                interaction.user.display_name,
+                usuario.display_name,
+                "🔥 Racha Máxima",
+                max_width=15,
+                value_type="days"
+            )
+            embed.add_field(name="\u200b", value=streak_comparison, inline=False)
+
+            # Determinar ganador global
+            user1_wins = 0
+            user2_wins = 0
+
+            if comparison['user1']['total_time_seconds'] > comparison['user2']['total_time_seconds']:
+                user1_wins += 1
+            elif comparison['user2']['total_time_seconds'] > comparison['user1']['total_time_seconds']:
+                user2_wins += 1
+
+            if comparison['user1']['unique_tracks'] > comparison['user2']['unique_tracks']:
+                user1_wins += 1
+            elif comparison['user2']['unique_tracks'] > comparison['user1']['unique_tracks']:
+                user2_wins += 1
+
+            if comparison['user1']['unique_artists'] > comparison['user2']['unique_artists']:
+                user1_wins += 1
+            elif comparison['user2']['unique_artists'] > comparison['user1']['unique_artists']:
+                user2_wins += 1
+
+            if comparison['user1']['top_artist_plays'] > comparison['user2']['top_artist_plays']:
+                user1_wins += 1
+            elif comparison['user2']['top_artist_plays'] > comparison['user1']['top_artist_plays']:
+                user2_wins += 1
+
+            if comparison['user1']['longest_streak'] > comparison['user2']['longest_streak']:
+                user1_wins += 1
+            elif comparison['user2']['longest_streak'] > comparison['user1']['longest_streak']:
+                user2_wins += 1
+
+            # Resultado final
+            if user1_wins > user2_wins:
+                winner_text = f"🏆 **{interaction.user.display_name}** gana la batalla! ({user1_wins}-{user2_wins})"
+            elif user2_wins > user1_wins:
+                winner_text = f"🏆 **{usuario.display_name}** gana la batalla! ({user2_wins}-{user1_wins})"
+            else:
+                winner_text = f"🤝 ¡Empate perfecto! ({user1_wins}-{user2_wins})"
+
+            embed.add_field(
+                name="📊 Resultado Final",
+                value=winner_text,
+                inline=False
+            )
+
+            embed.set_footer(text=f"Wrapped Battle {year} | {interaction.guild.name}")
+
+            await interaction.followup.send(embed=embed)
+
+        except Exception as e:
+            await interaction.followup.send(f"⚠️ Error al generar la batalla: {e}")
 
 
 async def setup(bot):

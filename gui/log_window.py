@@ -336,7 +336,7 @@ class LogWindow:
             # Botón de instalación silenciosa (visible solo si hay update con .exe disponible)
             pystray.MenuItem(
                 lambda item: (
-                    "Instalando... esperá" if self._update_installing
+                    "Instalando... espera" if self._update_installing
                     else f"🔔 Actualizar ahora a v{self._update_version}"
                 ),
                 self._install_update,

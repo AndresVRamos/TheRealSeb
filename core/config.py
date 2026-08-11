@@ -77,7 +77,7 @@ HISTORY_LIMIT = 10
 # === WRAPPED ===
 # Habilitar o deshabilitar el módulo Wrapped (comandos .wrapped, .ws, etc.)
 # Por defecto está desactivado. Cambiar a True para habilitar.
-WRAPPED_ENABLED = False
+WRAPPED_ENABLED = True
 
 # Año mínimo para estadísticas Wrapped
 WRAPPED_MIN_YEAR = 2020
@@ -140,3 +140,64 @@ YOUTUBE_COOKIES_BROWSER = None
 # ID del servidor para sync de desarrollo (instantáneo)
 # Cambiar a None para sync global (tarda hasta 1 hora)
 SLASH_COMMANDS_GUILD_ID = None  # Ej: 123456789012345678
+
+# === WRAPPED - NAVEGACIÓN ===
+# Timeout para la vista interactiva de Wrapped (segundos)
+WRAPPED_VIEW_TIMEOUT = 300  # 5 minutos
+
+# === WRAPPED - LÍMITES DE VISUALIZACIÓN ===
+# Máximo de eventos a mostrar en la timeline
+WRAPPED_MAX_TIMELINE_EVENTS = 10
+
+# Máximo de fun facts a mostrar
+WRAPPED_MAX_FUN_FACTS = 6
+
+# Máximo de canciones "solo tú" a mostrar
+WRAPPED_MAX_UNIQUE_SONGS_DISPLAY = 5
+
+# Longitud máxima de títulos de canciones (truncar si excede)
+WRAPPED_TRACK_TITLE_MAX_LENGTH = 50
+
+# Líneas máximas para gráficos ASCII
+WRAPPED_ASCII_CHART_MAX_LINES = 12
+
+# === PERSONALIDADES EXPANDIDAS ===
+# Umbral para Weekend Warrior (>60% reproducciones en fines de semana)
+WEEKEND_WARRIOR_THRESHOLD = 0.6
+
+# Umbral para Commute Companion (>40% en horas de tránsito)
+COMMUTE_COMPANION_THRESHOLD = 0.4
+
+# Mínimo de sesiones largas para Study Buddy
+STUDY_BUDDY_MIN_SESSIONS = 10
+
+# Duración promedio de sesión para Study Buddy (segundos)
+STUDY_BUDDY_AVG_DURATION = 7200  # 2 horas
+
+# Días de anticipación para Hipster (descubrir artista antes que otros)
+HIPSTER_DISCOVERY_DAYS = 30
+
+# === ACHIEVEMENTS - UMBRALES ===
+# Tiempo
+ACHIEVEMENT_MARATHON_HOURS = 50
+ACHIEVEMENT_CENTURY_CLUB_HOURS = 100
+ACHIEVEMENT_TIME_TRAVELER_HOURS = 500
+
+# Exploración
+ACHIEVEMENT_EXPLORER_ARTISTS = 50
+ACHIEVEMENT_HUNTER_ARTISTS = 100
+ACHIEVEMENT_VARIETY_TRACKS = 500
+
+# Lealtad
+ACHIEVEMENT_LOYAL_FAN_PLAYS = 200
+ACHIEVEMENT_SUPER_FAN_PLAYS = 500
+ACHIEVEMENT_OBSESSED_PLAYS = 100
+
+# Rachas
+ACHIEVEMENT_WEEK_STREAK_DAYS = 7
+ACHIEVEMENT_MONTH_STREAK_DAYS = 30
+ACHIEVEMENT_QUARTER_STREAK_DAYS = 90
+
+# Actividad
+ACHIEVEMENT_POWER_USER_PLAYS = 1000
+ACHIEVEMENT_MEGA_USER_PLAYS = 5000
