@@ -1074,6 +1074,7 @@ def get_user_monthly_breakdown(discord_user_id: int, discord_guild_id: int,
         - top_track: Dict[title, artist, play_count]
         - top_artist: Dict[name, play_count]
         - new_artists: int (artistas descubiertos este mes)
+        - busiest_day_plays: int (máximo de plays en un día del mes)
     """
     conn = get_connection()
     cursor = conn.cursor()
@@ -1159,6 +1160,18 @@ def get_user_monthly_breakdown(discord_user_id: int, discord_guild_id: int,
 
         new_artists_row = cursor.fetchone()
 
+        # Día más activo del mes (para detectar maratones)
+        cursor.execute('''
+            SELECT COUNT(*) as day_plays
+            FROM plays p
+            WHERE p.requester_id = ? AND p.guild_id = ? AND p.year = ? AND p.month = ?
+            GROUP BY p.day
+            ORDER BY day_plays DESC
+            LIMIT 1
+        ''', (user_id, guild_id, year, month))
+
+        busiest_day_row = cursor.fetchone()
+
         monthly_stats.append({
             'month': month,
             'plays_count': basic_stats['plays_count'],
@@ -1167,7 +1180,8 @@ def get_user_monthly_breakdown(discord_user_id: int, discord_guild_id: int,
             'unique_artists': basic_stats['unique_artists'],
             'top_track': top_track,
             'top_artist': top_artist,
-            'new_artists': new_artists_row['new_artists'] if new_artists_row else 0
+            'new_artists': new_artists_row['new_artists'] if new_artists_row else 0,
+            'busiest_day_plays': busiest_day_row['day_plays'] if busiest_day_row else 0
         })
 
     conn.close()
