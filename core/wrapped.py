@@ -31,7 +31,12 @@ from core.config import (
     WRAPPED_MAX_TIMELINE_EVENTS,
     WRAPPED_MAX_FUN_FACTS,
     WRAPPED_MAX_UNIQUE_SONGS_DISPLAY,
-    WRAPPED_TRACK_TITLE_MAX_LENGTH
+    WRAPPED_TRACK_TITLE_MAX_LENGTH,
+    TIMELINE_OBSESSION_MIN_PLAYS,
+    TIMELINE_TOP_SONG_MIN_PLAYS,
+    TIMELINE_MARATHON_MIN_SONGS,
+    TIMELINE_DIVERSE_MIN_ARTISTS,
+    TIMELINE_REDISCOVERY_MONTHS_GAP
 )
 
 
@@ -483,7 +488,7 @@ def create_stats_section(user: discord.Member, stats: Dict[str, Any],
 
 def create_timeline_section(user: discord.Member, stats: Dict[str, Any],
                             extended_data: Dict[str, Any], guild: discord.Guild) -> discord.Embed:
-    """Sección 4: Timeline - Eventos mes a mes"""
+    """Sección 4: Timeline - Eventos mes a mes con múltiples tipos de eventos"""
     year = stats['year']
 
     embed = discord.Embed(
@@ -497,42 +502,86 @@ def create_timeline_section(user: discord.Member, stats: Dict[str, Any],
     month_names = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN",
                    "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"]
 
-    # Obtener breakdown mensual y timeline de descubrimientos
+    # Obtener datos necesarios
     monthly_breakdown = extended_data.get('monthly_breakdown', [])
     discovery_timeline = extended_data.get('discovery_timeline', [])
 
     events = []
+    processed_months = set()  # Para evitar duplicados del mismo mes
 
-    # Agregar eventos significativos
-    for month_data in monthly_breakdown[:WRAPPED_MAX_TIMELINE_EVENTS]:
-        month = month_data['month']
-        month_name = month_names[month - 1]
-
-        # Nuevos artistas
-        if month_data.get('new_artists', 0) > 0:
-            # Buscar qué artistas se descubrieron este mes
-            discovered = [d for d in discovery_timeline if d['month'] == month]
-            if discovered:
-                artist_name = truncate_text(discovered[0]['artist_name'], 30)
-                events.append(f"**{month_name}:** Descubriste a *{artist_name}* 🔭")
-
-        # Obsesión del mes (canción con muchos plays)
-        if month_data.get('top_track') and month_data['top_track']['play_count'] >= 20:
-            track = month_data['top_track']
-            track_title = truncate_text(track['title'], 35)
-            events.append(
-                f"**{month_name}:** Obsesión con *{track_title}* "
-                f"({track['play_count']} plays) 🔥"
-            )
-
-    # Primera canción del año
+    # 1. Primera canción del año (siempre al inicio si existe)
     if stats.get('first_track'):
         first = stats['first_track']
         first_title = truncate_text(first['title'], 35)
-        events.insert(0, f"🎉 **Primera canción:** *{first_title}*")
+        events.append((0, 0, f"🎉 **Primera canción:** *{first_title}*"))
 
-    if events:
-        embed.description = "\n\n".join(events[:WRAPPED_MAX_TIMELINE_EVENTS])
+    # 2. Encontrar mes más activo
+    if monthly_breakdown:
+        max_plays_month = max(monthly_breakdown, key=lambda m: m.get('total_plays', 0))
+        if max_plays_month.get('total_plays', 0) > 0:
+            month = max_plays_month['month']
+            month_name = month_names[month - 1]
+            plays = max_plays_month['total_plays']
+            events.append((month, 1, f"**{month_name}:** Tu mes más activo ({plays} canciones) 🔥"))
+            processed_months.add((month, 'active'))
+
+    # 3. Procesar eventos por mes
+    for month_data in monthly_breakdown:
+        month = month_data['month']
+        month_name = month_names[month - 1]
+
+        # 3a. Descubrimiento de nuevos artistas
+        if month_data.get('new_artists', 0) > 0:
+            discovered = [d for d in discovery_timeline if d['month'] == month]
+            if discovered:
+                artist_name = truncate_text(discovered[0]['artist_name'], 30)
+                events.append((month, 2, f"**{month_name}:** Descubriste a *{artist_name}* 🔭"))
+
+        # 3b. Obsesión del mes (umbral reducido a 8)
+        if month_data.get('top_track') and month_data['top_track']['play_count'] >= TIMELINE_OBSESSION_MIN_PLAYS:
+            track = month_data['top_track']
+            track_title = truncate_text(track['title'], 35)
+            events.append((
+                month, 3,
+                f"**{month_name}:** Obsesión con *{track_title}* ({track['play_count']} plays) 🔥"
+            ))
+        # 3c. Canción del mes (más permisivo, 5+ plays)
+        elif month_data.get('top_track') and month_data['top_track']['play_count'] >= TIMELINE_TOP_SONG_MIN_PLAYS:
+            track = month_data['top_track']
+            track_title = truncate_text(track['title'], 35)
+            events.append((
+                month, 4,
+                f"**{month_name}:** Canción del mes: *{track_title}* ({track['play_count']} plays) 🎵"
+            ))
+
+        # 3d. Mes diverso (10+ artistas únicos)
+        if month_data.get('unique_artists', 0) >= TIMELINE_DIVERSE_MIN_ARTISTS:
+            artists_count = month_data['unique_artists']
+            events.append((
+                month, 5,
+                f"**{month_name}:** Mes diverso ({artists_count} artistas diferentes) 🌈"
+            ))
+
+        # 3e. Maratón musical (día con 15+ canciones)
+        if month_data.get('busiest_day_plays', 0) >= TIMELINE_MARATHON_MIN_SONGS:
+            day_plays = month_data['busiest_day_plays']
+            events.append((
+                month, 6,
+                f"**{month_name}:** Maratón musical ({day_plays} canciones en un día) 🎧"
+            ))
+
+    # 4. Cambios de favorito y Redescubrimientos
+    # Estos eventos requieren queries adicionales más detalladas
+    # TODO: Implementar cuando se creen queries que devuelvan listas de cambios
+
+    # Ordenar eventos por mes y prioridad
+    events.sort(key=lambda x: (x[0], x[1]))
+
+    # Formatear eventos (quitar tuplas de ordenamiento)
+    formatted_events = [event[2] for event in events]
+
+    if formatted_events:
+        embed.description = "\n\n".join(formatted_events[:WRAPPED_MAX_TIMELINE_EVENTS])
     else:
         embed.description = "*No hay eventos destacados este año*"
 
@@ -770,7 +819,10 @@ def generate_dynamic_fun_facts(stats: Dict[str, Any],
     discovery_timeline = extended_data.get('discovery_timeline', [])
     if len(discovery_timeline) > 0:
         days_per_discovery = 365 / len(discovery_timeline)
-        facts.append(f"• Descubriste un nuevo artista cada **{int(days_per_discovery)} días**")
+        if days_per_discovery < 1:
+            facts.append(f"• Descubriste un nuevo artista **casi a diario** ({len(discovery_timeline)} artistas)")
+        else:
+            facts.append(f"• Descubriste un nuevo artista cada **{int(days_per_discovery)} días**")
 
     # 3. Día favorito de la semana
     if stats.get('favorite_day_of_week') is not None:

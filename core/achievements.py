@@ -396,14 +396,14 @@ def get_achievement_progress(stats: Dict[str, Any],
 
 def format_achievements_for_embed(unlocked: List[Achievement], max_length: int = 1024) -> str:
     """
-    Formatea los achievements para mostrar en un embed.
+    Formatea los achievements para mostrar en un embed con descripciones.
 
     Args:
         unlocked: Lista de achievements desbloqueados
         max_length: Longitud máxima del string (límite de Discord)
 
     Returns:
-        String con achievements formateados
+        String con achievements formateados con separación visual y descripciones
     """
     if not unlocked:
         return "*No hay logros desbloqueados este año*"
@@ -418,16 +418,26 @@ def format_achievements_for_embed(unlocked: List[Achievement], max_length: int =
 
     for tier in [4, 3, 2, 1]:
         if by_tier[tier]:
+            # Separador visual antes del tier (excepto el primero)
+            if result:
+                result.append("")  # Línea en blanco entre tiers
+
             tier_line = f"**{tier_names[tier]}**"
             if len("\n".join(result + [tier_line])) > max_length - 100:
                 break  # No agregar más si nos acercamos al límite
 
             result.append(tier_line)
             for ach in by_tier[tier]:
-                ach_line = f"{ach.emoji} **{ach.name}**"
-                if len("\n".join(result + [ach_line])) > max_length - 50:
+                # Formato con bullet y descripción indentada
+                ach_line = f"└ {ach.emoji} **{ach.name}**"
+                desc_line = f"  └ *{ach.description}*"
+
+                # Verificar que quepan ambas líneas
+                if len("\n".join(result + [ach_line, desc_line])) > max_length - 50:
                     result.append("*...y más*")
                     return "\n".join(result)
+
                 result.append(ach_line)
+                result.append(desc_line)
 
     return "\n".join(result)

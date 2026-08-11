@@ -161,6 +161,22 @@ WRAPPED_TRACK_TITLE_MAX_LENGTH = 50
 # Líneas máximas para gráficos ASCII
 WRAPPED_ASCII_CHART_MAX_LINES = 12
 
+# === WRAPPED - TIMELINE EVENTS ===
+# Umbral mínimo para considerar una canción como "obsesión del mes"
+TIMELINE_OBSESSION_MIN_PLAYS = 8  # Reducido de 20 a 8
+
+# Umbral mínimo para "canción del mes" (menos restrictivo que obsesión)
+TIMELINE_TOP_SONG_MIN_PLAYS = 5
+
+# Umbral para considerar un día como "maratón musical"
+TIMELINE_MARATHON_MIN_SONGS = 15
+
+# Umbral para considerar un mes como "diverso"
+TIMELINE_DIVERSE_MIN_ARTISTS = 10
+
+# Meses de inactividad para considerar un "redescubrimiento"
+TIMELINE_REDISCOVERY_MONTHS_GAP = 2
+
 # === PERSONALIDADES EXPANDIDAS ===
 # Umbral para Weekend Warrior (>60% reproducciones en fines de semana)
 WEEKEND_WARRIOR_THRESHOLD = 0.6
