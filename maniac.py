@@ -158,6 +158,10 @@ async def run_bot():
     await bot.load_extension('commands.music')
     logging.info("Cog de música cargado correctamente")
 
+    # Cargar Stats (siempre)
+    await bot.load_extension('commands.stats')
+    logging.info("Cog de estadísticas cargado correctamente")
+
     # Cargar Wrapped si está habilitado en config.py
     if WRAPPED_ENABLED:
         await bot.load_extension('commands.wrapped')
