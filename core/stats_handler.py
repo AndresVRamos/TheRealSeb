@@ -24,6 +24,7 @@ from core.database.queries import (
     update_user_streak,
     get_user_id_from_discord,
     get_guild_id_from_discord,
+    recalculate_all_streaks,
 )
 
 
@@ -97,6 +98,7 @@ __all__ = [
     'get_listening_hours',
     'get_listening_days',
     'get_streak',
+    'recalculate_all_streaks',
 ]
 
 def get_top_artists(user_id: int, guild_id: Optional[int] = None,
