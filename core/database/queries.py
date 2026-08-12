@@ -337,6 +337,8 @@ def _update_daily_stats(user_id: int, guild_id: int, date_key: str,
 
 def get_user_streak(user_id: int, guild_id: int, conn: sqlite3.Connection = None) -> Dict[str, Any]:
     """Obtiene la información de racha actual del usuario"""
+    from datetime import datetime, timedelta
+
     should_close = conn is None
     if conn is None:
         conn = get_connection()
@@ -353,8 +355,22 @@ def get_user_streak(user_id: int, guild_id: int, conn: sqlite3.Connection = None
         conn.close()
 
     if row:
+        # Verificar si la racha sigue activa
+        last_listen = row['last_listen_date']
+        current_streak = row['current_streak']
+
+        if last_listen:
+            # Convertir last_listen_date a objeto date
+            last_date = datetime.strptime(last_listen, '%Y-%m-%d').date()
+            today = datetime.now().date()
+            days_since = (today - last_date).days
+
+            # La racha solo es válida si el último play fue hoy o ayer
+            if days_since > 1:
+                current_streak = 0
+
         return {
-            'current_streak': row['current_streak'],
+            'current_streak': current_streak,
             'longest_streak': row['longest_streak'],
             'last_listen_date': row['last_listen_date'],
             'streak_start_date': row['streak_start_date']
@@ -428,6 +444,61 @@ def update_user_streak(user_id: int, guild_id: int, date_key: str,
 
     conn.commit()
     if should_close:
+        conn.close()
+
+
+def recalculate_all_streaks():
+    """
+    Recalcula todas las rachas en la base de datos.
+    Resetea a 0 las rachas que ya no están activas (más de 1 día sin plays).
+    Se ejecuta al inicio del bot para mantener las rachas actualizadas.
+    """
+    from datetime import datetime
+    import logging
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        # Obtener todas las rachas
+        cursor.execute('''
+            SELECT user_id, guild_id, last_listen_date
+            FROM user_streaks
+            WHERE current_streak > 0
+        ''')
+
+        streaks_to_update = []
+        today = datetime.now().date()
+
+        for row in cursor.fetchall():
+            user_id = row['user_id']
+            guild_id = row['guild_id']
+            last_listen = row['last_listen_date']
+
+            if last_listen:
+                last_date = datetime.strptime(last_listen, '%Y-%m-%d').date()
+                days_since = (today - last_date).days
+
+                # Si pasaron más de 1 día, resetear la racha
+                if days_since > 1:
+                    streaks_to_update.append((user_id, guild_id))
+
+        # Actualizar rachas rotas
+        if streaks_to_update:
+            for user_id, guild_id in streaks_to_update:
+                cursor.execute('''
+                    UPDATE user_streaks
+                    SET current_streak = 0, streak_start_date = NULL
+                    WHERE user_id = ? AND guild_id = ?
+                ''', (user_id, guild_id))
+
+            conn.commit()
+            logging.info(f"Recalculadas {len(streaks_to_update)} rachas obsoletas")
+
+    except Exception as e:
+        logging.error(f"Error recalculando rachas: {e}")
+        conn.rollback()
+    finally:
         conn.close()
 
 

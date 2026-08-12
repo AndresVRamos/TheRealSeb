@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from gui.log_window import LogWindow
 from core.config import WRAPPED_ENABLED, SLASH_COMMANDS_GUILD_ID, MAX_RECONNECT_DELAY, BOT_PREFIX
 from core.updater import check_for_updates
+from core.stats_handler import recalculate_all_streaks
 
 # Importar dashboard web (con manejo de errores si no está disponible)
 try:
@@ -82,6 +83,12 @@ async def run_bot():
                 logging.info(f"Sincronizados {len(synced)} slash commands globalmente")
         except Exception as e:
             logging.error(f"Error sincronizando slash commands: {e}")
+
+        # Recalcular rachas obsoletas al iniciar el bot
+        try:
+            recalculate_all_streaks()
+        except Exception as e:
+            logging.error(f"Error recalculando rachas: {e}")
 
     @bot.event
     async def on_disconnect():
