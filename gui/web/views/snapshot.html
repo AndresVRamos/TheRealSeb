@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estadisticas - Snapshot</title>
+    <style>
+{{ css | safe }}
+
+/* Estilos adicionales para snapshot */
+.snapshot-container {
+    min-height: 100vh;
+    overflow: auto;
+}
+
+.snapshot-header {
+    background: var(--bg-secondary);
+    padding: 1.5rem 2rem;
+    border-bottom: 1px solid var(--divider);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.snapshot-header h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.snapshot-meta {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.snapshot-meta span {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.snapshot-meta strong {
+    color: var(--text-primary);
+}
+
+/* Ocultar elementos interactivos que no funcionan offline */
+.compare-card { display: none !important; }
+
+/* Ajustar body para snapshot */
+html.snapshot, html.snapshot body {
+    height: auto;
+    overflow: auto;
+}
+    </style>
+</head>
+<body>
+<html class="snapshot">
+<div class="snapshot-container">
+    <div class="snapshot-header">
+        <h1>
+            <span>&#128202;</span>
+            <span>Estadisticas - The Real Seb</span>
+        </h1>
+        <div class="snapshot-meta">
+            <span>Servidor: <strong id="server-name"></strong></span>
+            <span>Periodo: <strong id="period-name"></strong></span>
+            <span>Generado: <strong id="generated-at"></strong></span>
+        </div>
+    </div>
+
+    <div class="stats-container">
+        <!-- Tendencia -->
+        <section class="card chart-card chart-card-full">
+            <h2>Tendencia de Reproducciones</h2>
+            <div class="chart-wrapper">
+                <canvas id="trend-chart"></canvas>
+            </div>
+        </section>
+
+        <!-- Por Hora y Por Dia -->
+        <div class="charts-row">
+            <section class="card chart-card">
+                <h2>Reproducciones por Hora</h2>
+                <div class="chart-wrapper">
+                    <canvas id="hourly-chart"></canvas>
+                </div>
+            </section>
+            <section class="card chart-card">
+                <h2>Reproducciones por Dia</h2>
+                <div class="chart-wrapper">
+                    <canvas id="daily-chart"></canvas>
+                </div>
+            </section>
+        </div>
+
+        <!-- Top Artistas y Top Usuarios -->
+        <div class="charts-row">
+            <section class="card chart-card">
+                <h2>Top Artistas</h2>
+                <div class="chart-wrapper">
+                    <canvas id="artists-chart"></canvas>
+                </div>
+            </section>
+            <section class="card chart-card">
+                <h2>Top Usuarios</h2>
+                <div class="chart-wrapper">
+                    <canvas id="users-chart"></canvas>
+                </div>
+            </section>
+        </div>
+
+        <!-- Usuarios Activos -->
+        <section class="card chart-card chart-card-full">
+            <h2>Usuarios Activos por Dia</h2>
+            <div class="chart-wrapper">
+                <canvas id="active-users-chart"></canvas>
+            </div>
+        </section>
+
+        <!-- Heatmap -->
+        <section class="card heatmap-card">
+            <h2>Actividad por Hora y Dia de la Semana</h2>
+            <div class="heatmap-container">
+                <div class="heatmap-wrapper">
+                    <div class="heatmap-hours" id="heatmap-hours"></div>
+                    <div class="heatmap-grid" id="heatmap-grid"></div>
+                </div>
+                <div class="heatmap-legend">
+                    <span class="legend-label">Menos</span>
+                    <div class="legend-scale">
+                        <div class="legend-cell" data-level="0"></div>
+                        <div class="legend-cell" data-level="1"></div>
+                        <div class="legend-cell" data-level="2"></div>
+                        <div class="legend-cell" data-level="3"></div>
+                        <div class="legend-cell" data-level="4"></div>
+                    </div>
+                    <span class="legend-label">Mas</span>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+
+<!-- Modal para detalles del dia -->
+<div id="day-detail-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modal-title">Reproducciones del dia</h3>
+            <button class="modal-close" id="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <table class="plays-table">
+                <thead>
+                    <tr>
+                        <th>Hora</th>
+                        <th>Cancion</th>
+                        <th>Artista</th>
+                        <th>Solicitado por</th>
+                        <th>Oyentes</th>
+                    </tr>
+                </thead>
+                <tbody id="plays-table-body"></tbody>
+            </table>
+            <div id="plays-empty" class="modal-empty" style="display: none;">No hay reproducciones este dia</div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para usuarios activos del dia -->
+<div id="users-detail-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content modal-sm">
+        <div class="modal-header">
+            <h3 id="users-modal-title">Usuarios activos</h3>
+            <button class="modal-close" id="users-modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <table class="users-table">
+                <thead>
+                    <tr>
+                        <th>Usuario</th>
+                        <th>Reproducciones</th>
+                    </tr>
+                </thead>
+                <tbody id="users-table-body"></tbody>
+            </table>
+            <div id="users-empty" class="modal-empty" style="display: none;">No hay usuarios activos este dia</div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para perfil de usuario -->
+<div id="user-profile-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content modal-profile">
+        <div class="modal-header">
+            <h3 id="profile-modal-title">Perfil de Usuario</h3>
+            <button class="modal-close" id="profile-modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="profile-loading" class="modal-loading" style="display: none;">Cargando...</div>
+            <div id="profile-content">
+                <div class="profile-header">
+                    <div class="profile-avatar" id="profile-avatar"></div>
+                    <div class="profile-info">
+                        <h2 id="profile-name"></h2>
+                        <div class="profile-meta"><span id="profile-member-since"></span></div>
+                    </div>
+                </div>
+                <div class="profile-stats-grid">
+                    <div class="profile-stat">
+                        <span class="stat-value" id="profile-plays">0</span>
+                        <span class="stat-label">Reproducciones</span>
+                    </div>
+                    <div class="profile-stat">
+                        <span class="stat-value" id="profile-time">0h</span>
+                        <span class="stat-label">Tiempo escuchando</span>
+                    </div>
+                    <div class="profile-stat">
+                        <span class="stat-value" id="profile-tracks">0</span>
+                        <span class="stat-label">Canciones unicas</span>
+                    </div>
+                    <div class="profile-stat">
+                        <span class="stat-value" id="profile-artists">0</span>
+                        <span class="stat-label">Artistas</span>
+                    </div>
+                </div>
+                <div class="profile-favorites">
+                    <div class="favorite-item">
+                        <span class="favorite-label">Hora favorita:</span>
+                        <span class="favorite-value" id="profile-fav-hour">--</span>
+                    </div>
+                    <div class="favorite-item">
+                        <span class="favorite-label">Dia favorito:</span>
+                        <span class="favorite-value" id="profile-fav-day">--</span>
+                    </div>
+                </div>
+                <div class="profile-tops">
+                    <div class="top-section">
+                        <h4>Top Canciones</h4>
+                        <ol class="top-list" id="profile-top-songs"></ol>
+                    </div>
+                    <div class="top-section">
+                        <h4>Top Artistas</h4>
+                        <ol class="top-list" id="profile-top-artists"></ol>
+                    </div>
+                </div>
+                <div class="profile-activity">
+                    <h4>Actividad reciente (7 dias)</h4>
+                    <div class="activity-chart">
+                        <canvas id="profile-activity-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js desde CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<!-- Datos del snapshot -->
+<script>const SNAPSHOT_DATA = {{ data | safe }};</script>
+
+<!-- Logica de renderizado -->
+<script>
+// Colores para graficos
+const chartColors = {
+    primary: '#0a84ff',
+    secondary: '#5e5ce6',
+    success: '#32d74b',
+    gradient: ['#0a84ff', '#5e5ce6', '#bf5af2', '#ff375f', '#ff9f0a']
+};
+
+// Referencias a graficos
+let trendChart, hourlyChart, dailyChart, artistsChart, usersChart, activeUsersChart, profileActivityChart;
+
+// Utilidades
+function formatNumber(num) {
+    if (num === null || num === undefined) return '0';
+    return num.toLocaleString('es-ES');
+}
+
+function formatTime(seconds) {
+    if (!seconds) return '0m';
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function getThemeColors() {
+    const style = getComputedStyle(document.documentElement);
+    return {
+        text: style.getPropertyValue('--text-primary').trim() || '#f5f5f7',
+        textSecondary: style.getPropertyValue('--text-secondary').trim() || '#98989d',
+        grid: style.getPropertyValue('--divider').trim() || 'rgba(255, 255, 255, 0.12)',
+        bg: style.getPropertyValue('--bg-secondary').trim() || '#1c1c1e'
+    };
+}
+
+function getBaseConfig() {
+    const colors = getThemeColors();
+    return {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { grid: { color: colors.grid, drawBorder: false }, ticks: { color: colors.textSecondary, font: { size: 11 } } },
+            y: { grid: { color: colors.grid, drawBorder: false }, ticks: { color: colors.textSecondary, font: { size: 11 } }, beginAtZero: true }
+        }
+    };
+}
+
+// Mostrar metadata
+function showMetadata() {
+    document.getElementById('server-name').textContent = SNAPSHOT_DATA.server_name;
+    const days = SNAPSHOT_DATA.filters.days;
+    document.getElementById('period-name').textContent = days >= 365 ? 'Todo el tiempo' : `${days} dias`;
+    document.getElementById('generated-at').textContent = new Date(SNAPSHOT_DATA.generated_at).toLocaleString('es-MX');
+}
+
+// Renderizar graficos
+function renderTrendChart() {
+    const ctx = document.getElementById('trend-chart').getContext('2d');
+    const config = getBaseConfig();
+    trendChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: SNAPSHOT_DATA.trend.labels,
+            datasets: [{
+                label: 'Reproducciones',
+                data: SNAPSHOT_DATA.trend.values,
+                borderColor: chartColors.primary,
+                backgroundColor: chartColors.primary + '20',
+                fill: true, tension: 0.4, pointRadius: 4, pointHoverRadius: 7,
+                pointBackgroundColor: chartColors.primary, pointBorderColor: '#fff', pointBorderWidth: 2
+            }]
+        },
+        options: {
+            ...config,
+            onClick: (event, elements) => {
+                if (elements.length > 0) {
+                    const index = elements[0].index;
+                    showDayDetail(SNAPSHOT_DATA.trend.dates[index], SNAPSHOT_DATA.trend.labels[index]);
+                }
+            },
+            onHover: (event, elements) => { event.native.target.style.cursor = elements.length > 0 ? 'pointer' : 'default'; }
+        }
+    });
+}
+
+function renderHourlyChart() {
+    const ctx = document.getElementById('hourly-chart').getContext('2d');
+    hourlyChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: SNAPSHOT_DATA.hourly.labels,
+            datasets: [{ label: 'Reproducciones', data: SNAPSHOT_DATA.hourly.values,
+                backgroundColor: chartColors.primary + '80', borderColor: chartColors.primary, borderWidth: 1, borderRadius: 4 }]
+        },
+        options: getBaseConfig()
+    });
+}
+
+function renderDailyChart() {
+    const ctx = document.getElementById('daily-chart').getContext('2d');
+    dailyChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: SNAPSHOT_DATA.daily.labels,
+            datasets: [{ label: 'Reproducciones', data: SNAPSHOT_DATA.daily.values,
+                backgroundColor: chartColors.gradient.map(c => c + '80'), borderColor: chartColors.gradient, borderWidth: 1, borderRadius: 4 }]
+        },
+        options: getBaseConfig()
+    });
+}
+
+function renderArtistsChart() {
+    const ctx = document.getElementById('artists-chart').getContext('2d');
+    const colors = getThemeColors();
+    artistsChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: SNAPSHOT_DATA.topArtists.labels,
+            datasets: [{ data: SNAPSHOT_DATA.topArtists.values, backgroundColor: chartColors.gradient, borderColor: colors.bg, borderWidth: 2 }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, cutout: '60%',
+            plugins: { legend: { display: true, position: 'right', labels: { color: colors.textSecondary, font: { size: 11 }, padding: 12, usePointStyle: true, pointStyle: 'circle' } } }
+        }
+    });
+}
+
+function renderUsersChart() {
+    const ctx = document.getElementById('users-chart').getContext('2d');
+    const config = getBaseConfig();
+    usersChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: SNAPSHOT_DATA.topUsers.labels,
+            datasets: [{ label: 'Reproducciones', data: SNAPSHOT_DATA.topUsers.values,
+                backgroundColor: chartColors.gradient.map(c => c + '80'), borderColor: chartColors.gradient, borderWidth: 1, borderRadius: 4 }]
+        },
+        options: {
+            ...config, indexAxis: 'y',
+            scales: { ...config.scales, x: { ...config.scales.x, beginAtZero: true } },
+            onClick: (event, elements) => {
+                if (elements.length > 0) {
+                    const userName = SNAPSHOT_DATA.topUsers.labels[elements[0].index];
+                    showUserProfile(userName);
+                }
+            },
+            onHover: (event, elements) => { event.native.target.style.cursor = elements.length > 0 ? 'pointer' : 'default'; }
+        }
+    });
+}
+
+function renderActiveUsersChart() {
+    const ctx = document.getElementById('active-users-chart').getContext('2d');
+    const config = getBaseConfig();
+    activeUsersChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: SNAPSHOT_DATA.activeUsers.labels,
+            datasets: [{
+                label: 'Usuarios', data: SNAPSHOT_DATA.activeUsers.values,
+                borderColor: chartColors.success, backgroundColor: chartColors.success + '20',
+                fill: true, tension: 0.4, pointRadius: 4, pointHoverRadius: 7,
+                pointBackgroundColor: chartColors.success, pointBorderColor: '#fff', pointBorderWidth: 2
+            }]
+        },
+        options: {
+            ...config,
+            onClick: (event, elements) => {
+                if (elements.length > 0) {
+                    const index = elements[0].index;
+                    showActiveUsersDetail(SNAPSHOT_DATA.activeUsers.dates[index], SNAPSHOT_DATA.activeUsers.labels[index]);
+                }
+            },
+            onHover: (event, elements) => { event.native.target.style.cursor = elements.length > 0 ? 'pointer' : 'default'; }
+        }
+    });
+}
+
+function renderHeatmap() {
+    const hoursContainer = document.getElementById('heatmap-hours');
+    const grid = document.getElementById('heatmap-grid');
+    hoursContainer.innerHTML = '';
+    grid.innerHTML = '';
+
+    const hoursSpacer = document.createElement('div');
+    hoursSpacer.className = 'heatmap-hours-spacer';
+    hoursContainer.appendChild(hoursSpacer);
+
+    const hoursCells = document.createElement('div');
+    hoursCells.className = 'heatmap-hours-cells';
+    for (let hour = 0; hour < 24; hour++) {
+        const hourLabel = document.createElement('div');
+        hourLabel.className = 'hour-label';
+        if (hour % 3 === 0) hourLabel.textContent = hour.toString().padStart(2, '0');
+        hoursCells.appendChild(hourLabel);
+    }
+    hoursContainer.appendChild(hoursCells);
+
+    const maxValue = SNAPSHOT_DATA.heatmap.max_value || 1;
+    const getLevel = (value) => {
+        if (value === 0) return 0;
+        const ratio = value / maxValue;
+        if (ratio <= 0.25) return 1;
+        if (ratio <= 0.50) return 2;
+        if (ratio <= 0.75) return 3;
+        return 4;
+    };
+
+    SNAPSHOT_DATA.heatmap.days.forEach((dayName, dayIndex) => {
+        const row = document.createElement('div');
+        row.className = 'heatmap-row';
+
+        const dayLabel = document.createElement('div');
+        dayLabel.className = 'heatmap-day-label';
+        dayLabel.textContent = dayName;
+        row.appendChild(dayLabel);
+
+        const cellsContainer = document.createElement('div');
+        cellsContainer.className = 'heatmap-cells';
+
+        for (let hour = 0; hour < 24; hour++) {
+            const value = SNAPSHOT_DATA.heatmap.matrix[dayIndex][hour];
+            const cell = document.createElement('div');
+            cell.className = 'heatmap-cell';
+            cell.dataset.level = getLevel(value);
+            cell.title = `${dayName} ${hour}:00 - ${value} reproducciones`;
+            cellsContainer.appendChild(cell);
+        }
+        row.appendChild(cellsContainer);
+        grid.appendChild(row);
+    });
+}
+
+// Modales
+function showDayDetail(date, label) {
+    const modal = document.getElementById('day-detail-modal');
+    const title = document.getElementById('modal-title');
+    const tableBody = document.getElementById('plays-table-body');
+    const empty = document.getElementById('plays-empty');
+
+    modal.style.display = 'flex';
+    title.textContent = `Reproducciones del ${label}`;
+
+    const plays = SNAPSHOT_DATA.dayDetails[date] || [];
+    if (plays.length === 0) {
+        tableBody.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+    }
+    empty.style.display = 'none';
+
+    tableBody.innerHTML = plays.map(play => {
+        const listenersHtml = play.listeners_count > 0
+            ? `<span class="listeners-tooltip" data-names="${play.listeners_names.join('\n')}">${play.listeners_count} oyente${play.listeners_count > 1 ? 's' : ''}</span>`
+            : '<span class="listeners">-</span>';
+        return `<tr>
+            <td class="time-col">${escapeHtml(play.time)}</td>
+            <td class="song-title" title="${escapeHtml(play.title)}">${escapeHtml(play.title)}</td>
+            <td class="artist-name" title="${escapeHtml(play.artist)}">${escapeHtml(play.artist)}</td>
+            <td class="requester"><span class="user-link" data-user="${escapeHtml(play.requester)}">${escapeHtml(play.requester)}</span></td>
+            <td class="listeners">${listenersHtml}</td>
+        </tr>`;
+    }).join('');
+
+    tableBody.querySelectorAll('.user-link').forEach(link => {
+        link.addEventListener('click', () => {
+            closeDayModal();
+            showUserProfile(link.dataset.user);
+        });
+    });
+}
+
+function closeDayModal() {
+    document.getElementById('day-detail-modal').style.display = 'none';
+}
+
+function showActiveUsersDetail(date, label) {
+    const modal = document.getElementById('users-detail-modal');
+    const title = document.getElementById('users-modal-title');
+    const tableBody = document.getElementById('users-table-body');
+    const empty = document.getElementById('users-empty');
+
+    modal.style.display = 'flex';
+    title.textContent = `Usuarios activos - ${label}`;
+
+    const users = SNAPSHOT_DATA.activeUsersDetails[date] || [];
+    if (users.length === 0) {
+        tableBody.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+    }
+    empty.style.display = 'none';
+
+    tableBody.innerHTML = users.map(user => `<tr>
+        <td><span class="user-link" data-user="${escapeHtml(user.name)}">${escapeHtml(user.name)}</span></td>
+        <td>${user.plays}</td>
+    </tr>`).join('');
+
+    tableBody.querySelectorAll('.user-link').forEach(link => {
+        link.addEventListener('click', () => {
+            closeUsersModal();
+            showUserProfile(link.dataset.user);
+        });
+    });
+}
+
+function closeUsersModal() {
+    document.getElementById('users-detail-modal').style.display = 'none';
+}
+
+function showUserProfile(userName) {
+    const modal = document.getElementById('user-profile-modal');
+    const content = document.getElementById('profile-content');
+    const loading = document.getElementById('profile-loading');
+
+    const profile = SNAPSHOT_DATA.userProfiles[userName];
+    if (!profile) {
+        alert(`Perfil de "${userName}" no disponible en este snapshot`);
+        return;
+    }
+
+    modal.style.display = 'flex';
+    loading.style.display = 'none';
+    content.style.display = 'block';
+
+    // Avatar
+    const avatarEl = document.getElementById('profile-avatar');
+    if (profile.avatar_url) {
+        avatarEl.innerHTML = `<img src="${escapeHtml(profile.avatar_url)}" alt="${escapeHtml(profile.name)}">`;
+    } else {
+        avatarEl.innerHTML = '';
+        avatarEl.textContent = profile.name.charAt(0).toUpperCase();
+    }
+
+    document.getElementById('profile-name').textContent = profile.name;
+    document.getElementById('profile-member-since').textContent = profile.stats.first_play
+        ? `Escuchando desde ${new Date(profile.stats.first_play).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}`
+        : '';
+
+    document.getElementById('profile-plays').textContent = formatNumber(profile.stats.total_plays);
+    document.getElementById('profile-time').textContent = formatTime(profile.stats.total_time);
+    document.getElementById('profile-tracks').textContent = formatNumber(profile.stats.unique_tracks);
+    document.getElementById('profile-artists').textContent = formatNumber(profile.stats.unique_artists);
+    document.getElementById('profile-fav-hour').textContent = profile.stats.favorite_hour !== null
+        ? `${profile.stats.favorite_hour}:00 - ${profile.stats.favorite_hour + 1}:00` : '--';
+    document.getElementById('profile-fav-day').textContent = profile.stats.favorite_day || '--';
+
+    document.getElementById('profile-top-songs').innerHTML = profile.top_songs.length > 0
+        ? profile.top_songs.map(s => `<li>${escapeHtml(s.title)} <span class="plays-count">(${s.plays})</span></li>`).join('')
+        : '<li class="empty">Sin datos</li>';
+
+    document.getElementById('profile-top-artists').innerHTML = profile.top_artists.length > 0
+        ? profile.top_artists.map(a => `<li>${escapeHtml(a.name)} <span class="plays-count">(${a.plays})</span></li>`).join('')
+        : '<li class="empty">Sin datos</li>';
+
+    // Grafico de actividad
+    if (profileActivityChart) profileActivityChart.destroy();
+    const activityMap = {};
+    profile.recent_activity.forEach(item => { activityMap[item.date] = item.plays; });
+
+    const labels = [], values = [];
+    for (let i = 6; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        const dayName = date.toLocaleDateString('es-ES', { weekday: 'short' });
+        labels.push(dayName);
+        values.push(activityMap[dateStr] || 0);
+    }
+
+    profileActivityChart = new Chart(document.getElementById('profile-activity-chart'), {
+        type: 'bar',
+        data: { labels, datasets: [{ data: values, backgroundColor: chartColors.primary + '60', borderColor: chartColors.primary, borderWidth: 1, borderRadius: 2 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+            scales: { x: { grid: { display: false }, ticks: { color: '#98989d', font: { size: 10 } } }, y: { display: false, beginAtZero: true } } }
+    });
+}
+
+function closeProfileModal() {
+    document.getElementById('user-profile-modal').style.display = 'none';
+}
+
+// Inicializar
+document.addEventListener('DOMContentLoaded', () => {
+    showMetadata();
+    renderTrendChart();
+    renderHourlyChart();
+    renderDailyChart();
+    renderArtistsChart();
+    renderUsersChart();
+    renderActiveUsersChart();
+    renderHeatmap();
+
+    // Event listeners para modales
+    document.getElementById('modal-close').addEventListener('click', closeDayModal);
+    document.getElementById('day-detail-modal').addEventListener('click', e => { if (e.target.id === 'day-detail-modal') closeDayModal(); });
+
+    document.getElementById('users-modal-close').addEventListener('click', closeUsersModal);
+    document.getElementById('users-detail-modal').addEventListener('click', e => { if (e.target.id === 'users-detail-modal') closeUsersModal(); });
+
+    document.getElementById('profile-modal-close').addEventListener('click', closeProfileModal);
+    document.getElementById('user-profile-modal').addEventListener('click', e => { if (e.target.id === 'user-profile-modal') closeProfileModal(); });
+
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { closeDayModal(); closeUsersModal(); closeProfileModal(); }
+    });
+});
+</script>
+</body>
+</html>

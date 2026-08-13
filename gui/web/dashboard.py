@@ -20,6 +20,7 @@ import sys
 import time
 from flask import Flask, render_template, Response, jsonify, redirect, request
 from datetime import datetime, timedelta
+import json
 
 # Obtener rutas del proyecto
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -1443,6 +1444,394 @@ def get_stats_heatmap():
             'days': ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'],
             'hours': [f'{h:02d}' for h in range(24)]
         })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================
+# API ENDPOINT PARA SNAPSHOT
+# ============================================
+
+def get_inline_css():
+    """Lee y combina base.css + stats.css para el snapshot"""
+    css_content = ""
+    for css_file in ['base.css', 'stats.css']:
+        css_path = os.path.join(CURRENT_DIR, 'static', 'css', css_file)
+        if os.path.exists(css_path):
+            with open(css_path, 'r', encoding='utf-8') as f:
+                css_content += f"/* {css_file} */\n{f.read()}\n\n"
+    return css_content
+
+
+@app.route('/api/snapshot')
+def generate_snapshot():
+    """Genera un snapshot HTML autocontenido del dashboard"""
+    if not DB_AVAILABLE:
+        return jsonify({'error': 'Database not available'}), 500
+
+    days = request.args.get('days', 7, type=int)
+    days = min(days, 365)
+    guild_id = request.args.get('guild_id', type=int)
+
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        # Obtener nombre del servidor si hay filtro
+        server_name = "Todos los servidores"
+        if guild_id:
+            cursor.execute('SELECT name FROM guilds WHERE id = ?', (guild_id,))
+            row = cursor.fetchone()
+            if row:
+                server_name = row['name']
+
+        # --- DATOS DE GRAFICOS ---
+
+        # 1. Tendencia
+        if guild_id:
+            cursor.execute('''
+                SELECT DATE(played_at) as date, COUNT(*) as plays
+                FROM plays
+                WHERE played_at >= DATE('now', 'localtime', ?) AND guild_id = ?
+                GROUP BY DATE(played_at)
+                ORDER BY date ASC
+            ''', (f'-{days} days', guild_id))
+        else:
+            cursor.execute('''
+                SELECT DATE(played_at) as date, COUNT(*) as plays
+                FROM plays
+                WHERE played_at >= DATE('now', 'localtime', ?)
+                GROUP BY DATE(played_at)
+                ORDER BY date ASC
+            ''', (f'-{days} days',))
+        trend_rows = cursor.fetchall()
+        trend_counts = {row['date']: row['plays'] for row in trend_rows}
+
+        trend_labels = []
+        trend_values = []
+        trend_dates = []
+        for i in range(days, -1, -1):
+            date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
+            trend_labels.append((datetime.now() - timedelta(days=i)).strftime('%d/%m'))
+            trend_values.append(trend_counts.get(date, 0))
+            trend_dates.append(date)
+
+        # 2. Por hora
+        if guild_id:
+            cursor.execute('''
+                SELECT CAST(strftime('%H', played_at) AS INTEGER) as hour, COUNT(*) as plays
+                FROM plays
+                WHERE played_at >= DATE('now', 'localtime', ?) AND guild_id = ?
+                GROUP BY hour
+            ''', (f'-{days} days', guild_id))
+        else:
+            cursor.execute('''
+                SELECT CAST(strftime('%H', played_at) AS INTEGER) as hour, COUNT(*) as plays
+                FROM plays
+                WHERE played_at >= DATE('now', 'localtime', ?)
+                GROUP BY hour
+            ''', (f'-{days} days',))
+        hourly_rows = cursor.fetchall()
+        hourly_counts = {row['hour']: row['plays'] for row in hourly_rows}
+        hourly_labels = [f'{h:02d}:00' for h in range(24)]
+        hourly_values = [hourly_counts.get(h, 0) for h in range(24)]
+
+        # 3. Por dia de semana
+        if guild_id:
+            cursor.execute('''
+                SELECT CAST(strftime('%w', played_at) AS INTEGER) as dow, COUNT(*) as plays
+                FROM plays
+                WHERE played_at >= DATE('now', 'localtime', ?) AND guild_id = ?
+                GROUP BY dow
+            ''', (f'-{days} days', guild_id))
+        else:
+            cursor.execute('''
+                SELECT CAST(strftime('%w', played_at) AS INTEGER) as dow, COUNT(*) as plays
+                FROM plays
+                WHERE played_at >= DATE('now', 'localtime', ?)
+                GROUP BY dow
+            ''', (f'-{days} days',))
+        daily_rows = cursor.fetchall()
+        daily_counts = {row['dow']: row['plays'] for row in daily_rows}
+        day_names = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab']
+        order = [1, 2, 3, 4, 5, 6, 0]
+        daily_labels = [day_names[i] for i in order]
+        daily_values = [daily_counts.get(i, 0) for i in order]
+
+        # 4. Top artistas
+        if guild_id:
+            cursor.execute('''
+                SELECT a.name, COUNT(*) as plays
+                FROM plays p
+                JOIN tracks t ON p.track_id = t.id
+                JOIN artists a ON t.artist_id = a.id
+                WHERE p.played_at >= DATE('now', 'localtime', ?) AND p.guild_id = ?
+                GROUP BY a.id ORDER BY plays DESC LIMIT 5
+            ''', (f'-{days} days', guild_id))
+        else:
+            cursor.execute('''
+                SELECT a.name, COUNT(*) as plays
+                FROM plays p
+                JOIN tracks t ON p.track_id = t.id
+                JOIN artists a ON t.artist_id = a.id
+                WHERE p.played_at >= DATE('now', 'localtime', ?)
+                GROUP BY a.id ORDER BY plays DESC LIMIT 5
+            ''', (f'-{days} days',))
+        artists_rows = cursor.fetchall()
+        artists_labels = [row['name'] for row in artists_rows]
+        artists_values = [row['plays'] for row in artists_rows]
+
+        # 5. Top usuarios
+        if guild_id:
+            cursor.execute('''
+                SELECT u.id, u.display_name, u.username, u.avatar_url, COUNT(*) as plays
+                FROM plays p
+                JOIN users u ON p.requester_id = u.id
+                WHERE p.played_at >= DATE('now', 'localtime', ?) AND p.guild_id = ?
+                GROUP BY u.id ORDER BY plays DESC LIMIT 5
+            ''', (f'-{days} days', guild_id))
+        else:
+            cursor.execute('''
+                SELECT u.id, u.display_name, u.username, u.avatar_url, COUNT(*) as plays
+                FROM plays p
+                JOIN users u ON p.requester_id = u.id
+                WHERE p.played_at >= DATE('now', 'localtime', ?)
+                GROUP BY u.id ORDER BY plays DESC LIMIT 5
+            ''', (f'-{days} days',))
+        users_rows = cursor.fetchall()
+        users_labels = [row['display_name'] or row['username'] for row in users_rows]
+        users_values = [row['plays'] for row in users_rows]
+        top_user_ids = [row['id'] for row in users_rows]
+
+        # 6. Usuarios activos por dia
+        if guild_id:
+            cursor.execute('''
+                SELECT DATE(played_at) as date, COUNT(DISTINCT requester_id) as users
+                FROM plays
+                WHERE played_at >= DATE('now', 'localtime', ?) AND guild_id = ?
+                GROUP BY DATE(played_at)
+            ''', (f'-{days} days', guild_id))
+        else:
+            cursor.execute('''
+                SELECT DATE(played_at) as date, COUNT(DISTINCT requester_id) as users
+                FROM plays
+                WHERE played_at >= DATE('now', 'localtime', ?)
+                GROUP BY DATE(played_at)
+            ''', (f'-{days} days',))
+        active_rows = cursor.fetchall()
+        active_counts = {row['date']: row['users'] for row in active_rows}
+        active_labels = []
+        active_values = []
+        active_dates = []
+        for i in range(days, -1, -1):
+            date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
+            active_labels.append((datetime.now() - timedelta(days=i)).strftime('%d/%m'))
+            active_values.append(active_counts.get(date, 0))
+            active_dates.append(date)
+
+        # 7. Heatmap
+        if guild_id:
+            cursor.execute('''
+                SELECT CAST(strftime('%w', played_at) AS INTEGER) as dow,
+                       CAST(strftime('%H', played_at) AS INTEGER) as hour,
+                       COUNT(*) as plays
+                FROM plays
+                WHERE played_at >= DATE('now', 'localtime', ?) AND guild_id = ?
+                GROUP BY dow, hour
+            ''', (f'-{days} days', guild_id))
+        else:
+            cursor.execute('''
+                SELECT CAST(strftime('%w', played_at) AS INTEGER) as dow,
+                       CAST(strftime('%H', played_at) AS INTEGER) as hour,
+                       COUNT(*) as plays
+                FROM plays
+                WHERE played_at >= DATE('now', 'localtime', ?)
+                GROUP BY dow, hour
+            ''', (f'-{days} days',))
+        heatmap_rows = cursor.fetchall()
+        heatmap_matrix = [[0 for _ in range(24)] for _ in range(7)]
+        heatmap_max = 0
+        for row in heatmap_rows:
+            heatmap_matrix[row['dow']][row['hour']] = row['plays']
+            if row['plays'] > heatmap_max:
+                heatmap_max = row['plays']
+        heatmap_reordered = heatmap_matrix[1:] + [heatmap_matrix[0]]
+
+        # --- DATOS DE MODALES ---
+
+        # Detalle de cada dia
+        day_details = {}
+        for date in trend_dates:
+            if guild_id:
+                cursor.execute('''
+                    SELECT p.id as play_id, t.title, a.name as artist, p.played_at,
+                           u.display_name as requester_display, u.username as requester_username
+                    FROM plays p
+                    JOIN tracks t ON p.track_id = t.id
+                    LEFT JOIN artists a ON t.artist_id = a.id
+                    JOIN users u ON p.requester_id = u.id
+                    WHERE DATE(p.played_at) = ? AND p.guild_id = ?
+                    ORDER BY p.played_at ASC
+                ''', (date, guild_id))
+            else:
+                cursor.execute('''
+                    SELECT p.id as play_id, t.title, a.name as artist, p.played_at,
+                           u.display_name as requester_display, u.username as requester_username
+                    FROM plays p
+                    JOIN tracks t ON p.track_id = t.id
+                    LEFT JOIN artists a ON t.artist_id = a.id
+                    JOIN users u ON p.requester_id = u.id
+                    WHERE DATE(p.played_at) = ?
+                    ORDER BY p.played_at ASC
+                ''', (date,))
+            plays = cursor.fetchall()
+
+            day_plays = []
+            for play in plays:
+                cursor.execute('''
+                    SELECT u.display_name, u.username FROM listens l
+                    JOIN users u ON l.user_id = u.id WHERE l.play_id = ?
+                ''', (play['play_id'],))
+                listeners = cursor.fetchall()
+                listener_names = [l['display_name'] or l['username'] for l in listeners]
+
+                day_plays.append({
+                    'time': play['played_at'].split(' ')[1][:5] if ' ' in play['played_at'] else play['played_at'],
+                    'title': play['title'],
+                    'artist': play['artist'] or 'Desconocido',
+                    'requester': play['requester_display'] or play['requester_username'],
+                    'listeners_count': len(listener_names),
+                    'listeners_names': listener_names
+                })
+            day_details[date] = day_plays
+
+        # Usuarios activos por dia
+        active_users_details = {}
+        for date in active_dates:
+            if guild_id:
+                cursor.execute('''
+                    SELECT u.display_name, u.username, COUNT(*) as plays
+                    FROM plays p
+                    JOIN users u ON p.requester_id = u.id
+                    WHERE DATE(p.played_at) = ? AND p.guild_id = ?
+                    GROUP BY u.id ORDER BY plays DESC
+                ''', (date, guild_id))
+            else:
+                cursor.execute('''
+                    SELECT u.display_name, u.username, COUNT(*) as plays
+                    FROM plays p
+                    JOIN users u ON p.requester_id = u.id
+                    WHERE DATE(p.played_at) = ?
+                    GROUP BY u.id ORDER BY plays DESC
+                ''', (date,))
+            users = cursor.fetchall()
+            active_users_details[date] = [{
+                'name': u['display_name'] or u['username'],
+                'plays': u['plays']
+            } for u in users]
+
+        # Perfiles de top usuarios
+        user_profiles = {}
+        for user_id in top_user_ids:
+            cursor.execute('''
+                SELECT u.id, u.display_name, u.username, u.avatar_url FROM users u WHERE u.id = ?
+            ''', (user_id,))
+            user = cursor.fetchone()
+            if not user:
+                continue
+
+            cursor.execute('''
+                SELECT COUNT(p.id) as total_plays, COALESCE(SUM(t.duration_seconds), 0) as total_time,
+                       COUNT(DISTINCT t.id) as unique_tracks, COUNT(DISTINCT t.artist_id) as unique_artists,
+                       MIN(p.played_at) as first_play, MAX(p.played_at) as last_play
+                FROM plays p JOIN tracks t ON p.track_id = t.id WHERE p.requester_id = ?
+            ''', (user_id,))
+            stats = cursor.fetchone()
+
+            cursor.execute('''
+                SELECT t.title, a.name as artist, COUNT(*) as plays
+                FROM plays p JOIN tracks t ON p.track_id = t.id LEFT JOIN artists a ON t.artist_id = a.id
+                WHERE p.requester_id = ? GROUP BY t.id ORDER BY plays DESC LIMIT 5
+            ''', (user_id,))
+            top_songs = cursor.fetchall()
+
+            cursor.execute('''
+                SELECT a.name, COUNT(*) as plays
+                FROM plays p JOIN tracks t ON p.track_id = t.id JOIN artists a ON t.artist_id = a.id
+                WHERE p.requester_id = ? GROUP BY a.id ORDER BY plays DESC LIMIT 5
+            ''', (user_id,))
+            top_artists = cursor.fetchall()
+
+            cursor.execute('''
+                SELECT CAST(strftime('%H', played_at) AS INTEGER) as hour, COUNT(*) as plays
+                FROM plays WHERE requester_id = ? GROUP BY hour ORDER BY plays DESC LIMIT 1
+            ''', (user_id,))
+            fav_hour_row = cursor.fetchone()
+
+            cursor.execute('''
+                SELECT CAST(strftime('%w', played_at) AS INTEGER) as dow, COUNT(*) as plays
+                FROM plays WHERE requester_id = ? GROUP BY dow ORDER BY plays DESC LIMIT 1
+            ''', (user_id,))
+            fav_dow_row = cursor.fetchone()
+            dow_names = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado']
+
+            cursor.execute('''
+                SELECT DATE(played_at) as date, COUNT(*) as plays
+                FROM plays WHERE requester_id = ? AND played_at >= DATE('now', 'localtime', '-7 days')
+                GROUP BY DATE(played_at) ORDER BY date ASC
+            ''', (user_id,))
+            recent_activity = cursor.fetchall()
+
+            user_name = user['display_name'] or user['username']
+            user_profiles[user_name] = {
+                'name': user_name,
+                'avatar_url': user['avatar_url'],
+                'stats': {
+                    'total_plays': stats['total_plays'] or 0,
+                    'total_time': stats['total_time'] or 0,
+                    'unique_tracks': stats['unique_tracks'] or 0,
+                    'unique_artists': stats['unique_artists'] or 0,
+                    'first_play': stats['first_play'],
+                    'last_play': stats['last_play'],
+                    'favorite_hour': fav_hour_row['hour'] if fav_hour_row else None,
+                    'favorite_day': dow_names[fav_dow_row['dow']] if fav_dow_row else None
+                },
+                'top_songs': [{'title': s['title'], 'artist': s['artist'], 'plays': s['plays']} for s in top_songs],
+                'top_artists': [{'name': a['name'], 'plays': a['plays']} for a in top_artists],
+                'recent_activity': [{'date': r['date'], 'plays': r['plays']} for r in recent_activity]
+            }
+
+        conn.close()
+
+        # Construir objeto de datos
+        snapshot_data = {
+            'generated_at': datetime.now().isoformat(),
+            'server_name': server_name,
+            'filters': {'days': days, 'guild_id': guild_id},
+            'trend': {'labels': trend_labels, 'values': trend_values, 'dates': trend_dates},
+            'hourly': {'labels': hourly_labels, 'values': hourly_values},
+            'daily': {'labels': daily_labels, 'values': daily_values},
+            'topArtists': {'labels': artists_labels, 'values': artists_values},
+            'topUsers': {'labels': users_labels, 'values': users_values},
+            'activeUsers': {'labels': active_labels, 'values': active_values, 'dates': active_dates},
+            'heatmap': {'matrix': heatmap_reordered, 'max_value': heatmap_max,
+                        'days': ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom']},
+            'dayDetails': day_details,
+            'activeUsersDetails': active_users_details,
+            'userProfiles': user_profiles
+        }
+
+        # Renderizar template
+        html = render_template('snapshot.html',
+                              data=json.dumps(snapshot_data, ensure_ascii=False),
+                              css=get_inline_css())
+
+        # Retornar como descarga
+        response = Response(html, mimetype='text/html')
+        timestamp = datetime.now().strftime('%Y-%m-%d')
+        response.headers['Content-Disposition'] = f'attachment; filename=stats_snapshot_{timestamp}.html'
+        return response
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

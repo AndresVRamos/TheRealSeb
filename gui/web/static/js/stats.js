@@ -1038,6 +1038,53 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+/**
+ * Descarga el snapshot del dashboard actual
+ */
+async function downloadSnapshot() {
+    const btn = document.getElementById('snapshot-btn');
+    if (!btn) return;
+
+    const originalHtml = btn.innerHTML;
+
+    try {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="btn-icon">&#8987;</span><span class="btn-label">Generando...</span>';
+
+        // Construir URL con filtros actuales
+        const params = new URLSearchParams();
+        params.set('days', currentRange);
+        if (currentServer) {
+            params.set('guild_id', currentServer);
+        }
+
+        // Descargar el archivo
+        const response = await fetch(`/api/snapshot?${params.toString()}`);
+
+        if (!response.ok) {
+            throw new Error('Error al generar snapshot');
+        }
+
+        // Obtener el blob y crear descarga
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `stats_snapshot_${new Date().toISOString().slice(0,10)}.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+
+    } catch (error) {
+        console.error('Error downloading snapshot:', error);
+        alert('Error al generar el snapshot. Intenta de nuevo.');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    }
+}
+
 // Inicializar
 document.addEventListener('DOMContentLoaded', () => {
     // Cargar lista de servidores, usuarios y graficos
@@ -1053,6 +1100,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Event listener para comparador
     document.getElementById('compare-btn')?.addEventListener('click', compareUsers);
+
+    // Event listener para snapshot
+    document.getElementById('snapshot-btn')?.addEventListener('click', downloadSnapshot);
 
     // Event listeners para toggles de promedio
     document.getElementById('hourly-avg-toggle')?.addEventListener('change', updateHourlyChart);
