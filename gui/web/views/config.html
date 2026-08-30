@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Configuracion{% endblock %}
+{% block description %}Configuracion del bot The Real Seb{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/config.css') }}">
+{% endblock %}
+
+{% block header %}
+<header class="glass-header">
+    <div class="header-main">
+        <h1>
+            <span class="page-icon">⚙️</span>
+            <span>Configuracion</span>
+        </h1>
+        <div class="header-actions">
+            <span class="changes-indicator" id="changes-indicator">
+                • Cambios sin guardar
+            </span>
+        </div>
+    </div>
+</header>
+{% endblock %}
+
+{% block content %}
+<div class="config-container">
+    <!-- Barra de acciones fija -->
+    <div class="config-actions-bar" id="actions-bar">
+        <button class="btn" id="btn-cancel" disabled>Cancelar</button>
+        <button class="btn primary" id="btn-save" disabled>Guardar</button>
+        <button class="btn success" id="btn-save-restart" disabled>Guardar y Reiniciar</button>
+    </div>
+
+    <!-- Contenedor de secciones -->
+    <div class="config-sections" id="config-sections">
+        <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <p>Cargando configuracion...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmacion de reinicio -->
+<div id="restart-modal" class="modal-overlay">
+    <div class="modal-content modal-sm">
+        <div class="modal-header">
+            <h3>Confirmar Reinicio</h3>
+            <button class="modal-close" id="restart-modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p>El bot se reiniciara para aplicar los cambios.</p>
+            <p class="warning-text">Esto desconectara temporalmente todas las sesiones de musica activas.</p>
+            <p>¿Deseas continuar?</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" id="restart-cancel">Cancelar</button>
+            <button class="btn success" id="restart-confirm">Reiniciar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/config.js') }}"></script>
+{% endblock %}
