@@ -97,6 +97,119 @@ def servers():
     return render_template('servers.html')
 
 
+@app.route('/config')
+def config_view():
+    """Vista de configuracion del bot"""
+    return render_template('config.html')
+
+
+# === API DE CONFIGURACION ===
+
+# Archivo de senal para reinicio
+RESTART_SIGNAL_FILE = os.path.join(PROJECT_ROOT, "data", ".restart_signal")
+
+
+@app.route('/api/config')
+def get_config():
+    """Retorna toda la configuracion como JSON estructurado por secciones."""
+    try:
+        from core.config_parser import get_config_for_api
+        config_data = get_config_for_api()
+        return jsonify({
+            'success': True,
+            'config': config_data
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/config', methods=['POST'])
+def save_config_endpoint():
+    """
+    Guarda cambios en config.py.
+
+    Body: {"changes": {"VARIABLE_NAME": nuevo_valor, ...}}
+    """
+    try:
+        from core.config_parser import save_config
+
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'No se recibieron datos'
+            }), 400
+
+        changes = data.get('changes', {})
+
+        if not changes:
+            return jsonify({
+                'success': True,
+                'message': 'No hay cambios que guardar'
+            })
+
+        # Guardar cambios
+        success, message = save_config(changes)
+
+        if success:
+            return jsonify({
+                'success': True,
+                'message': message
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': message
+            }), 400
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/config/restart', methods=['POST'])
+def save_and_restart():
+    """
+    Guarda cambios y senala que el bot debe reiniciarse.
+    """
+    try:
+        from core.config_parser import save_config
+
+        data = request.get_json()
+        changes = data.get('changes', {}) if data else {}
+
+        # Guardar cambios si los hay
+        if changes:
+            success, message = save_config(changes)
+            if not success:
+                return jsonify({
+                    'success': False,
+                    'error': message
+                }), 400
+
+        # Crear archivo de senal para reinicio
+        os.makedirs(os.path.dirname(RESTART_SIGNAL_FILE), exist_ok=True)
+        with open(RESTART_SIGNAL_FILE, 'w') as f:
+            f.write(datetime.now().isoformat())
+
+        return jsonify({
+            'success': True,
+            'message': 'Configuracion guardada. El bot se reiniciara en breve.',
+            'restart_scheduled': True
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @app.route('/api/logs/initial')
 def get_initial_logs():
     """Obtiene las últimas N líneas del archivo de logs"""

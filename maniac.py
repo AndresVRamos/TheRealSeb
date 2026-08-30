@@ -195,6 +195,39 @@ def start_bot():
     asyncio.run(run_bot())
 
 
+def check_restart_signal():
+    """Monitorea el archivo de senal de reinicio y reinicia el bot si existe"""
+    import time
+    import subprocess
+
+    RESTART_SIGNAL_FILE = os.path.join("data", ".restart_signal")
+
+    while True:
+        try:
+            if os.path.exists(RESTART_SIGNAL_FILE):
+                logging.info("Senal de reinicio detectada. Reiniciando bot...")
+
+                # Eliminar archivo de senal
+                os.remove(RESTART_SIGNAL_FILE)
+
+                # Dar tiempo para que se escriban logs
+                time.sleep(1)
+
+                # Reiniciar el proceso
+                # En Windows, os.execv no funciona bien, usamos subprocess
+                import sys
+                subprocess.Popen([sys.executable] + sys.argv, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+
+                # Terminar proceso actual
+                logging.info("Proceso actual terminando para reinicio...")
+                os._exit(0)
+
+        except Exception as e:
+            logging.error(f"Error verificando senal de reinicio: {e}")
+
+        time.sleep(2)  # Verificar cada 2 segundos
+
+
 def start_dashboard():
     """Iniciar el dashboard web en un thread separado"""
     if not DASHBOARD_AVAILABLE:
@@ -236,6 +269,10 @@ if __name__ == "__main__":
         dashboard_thread = threading.Thread(target=start_dashboard, daemon=True)
         dashboard_thread.start()
         logging.info("Dashboard web iniciado en background")
+
+        # Iniciar monitoreo de senal de reinicio
+        restart_thread = threading.Thread(target=check_restart_signal, daemon=True)
+        restart_thread.start()
     else:
         logging.warning("Dashboard web no disponible - continuando sin él")
 
